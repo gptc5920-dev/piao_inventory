@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 $page_title = 'Supplies';
 $current_page = 'supplies';
@@ -15,32 +16,57 @@ $limit = 10; // Items per page
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
+$purchaseSummarySql = osaeits_supply_movement_summary_sql();
+$fromSql = " FROM supplies s LEFT JOIN ({$purchaseSummarySql}) tx ON tx.item_id = s.id";
+$stockExpr = osaeits_supply_stock_expression('tx', 's');
+$supplyCodeExpr = osaeits_item_code_select_expr($pdo, 's', 'supply');
+
 $conditions = [];
 $params = [];
 if ($low_stock_only) {
-    $conditions[] = 'current_stock <= minimum_stock';
+    $conditions[] = "{$stockExpr} <= s.minimum_stock";
 }
 if ($search !== '') {
-    $conditions[] = '(name LIKE ? OR category LIKE ? OR supplier LIKE ?)';
+    $conditions[] = "({$supplyCodeExpr} LIKE ? OR s.name LIKE ? OR s.description LIKE ? OR s.category LIKE ? OR s.supplier LIKE ?)";
     $term = "%$search%";
-    array_push($params, $term, $term, $term);
+    array_push($params, $term, $term, $term, $term, $term);
 }
+$whereSql = !empty($conditions) ? ' WHERE ' . implode(' AND ', $conditions) : '';
+$havingSql = $low_stock_only ? " HAVING SUM({$stockExpr}) <= SUM(s.minimum_stock)" : '';
+
+$productGroupSql = "
+    SELECT
+        LOWER(TRIM(s.name)) AS product_key,
+        MIN(s.name) AS product_name,
+        COUNT(*) AS variant_count,
+        CASE
+            WHEN COUNT(DISTINCT COALESCE(NULLIF(TRIM(s.unit), ''), '-')) = 1 THEN MAX(s.unit)
+            ELSE 'Mixed'
+        END AS unit_label,
+        SUM({$stockExpr}) AS current_stock,
+        SUM(s.minimum_stock) AS minimum_stock,
+        SUM(COALESCE(tx.purchase_quantity, 0)) AS purchase_quantity,
+        MAX(tx.last_purchase_at) AS last_purchase_at
+    {$fromSql}
+    {$whereSql}
+    GROUP BY LOWER(TRIM(s.name))
+    {$havingSql}
+";
 
 // Get total count for pagination
-$countSql = "SELECT COUNT(*) FROM supplies";
-if (!empty($conditions)) {
-    $countSql .= ' WHERE ' . implode(' AND ', $conditions);
-}
+$countSql = "SELECT COUNT(*) FROM ({$productGroupSql}) product_count";
 $countStmt = $pdo->prepare($countSql);
 $countStmt->execute($params);
-$total_items = $countStmt->fetchColumn();
+$total_items = (int)$countStmt->fetchColumn();
 $total_pages = ceil($total_items / $limit);
 
-$sql = "SELECT *, (current_stock <= minimum_stock) AS is_low_stock FROM supplies";
-if (!empty($conditions)) {
-    $sql .= ' WHERE ' . implode(' AND ', $conditions);
-}
-$sql .= sprintf(" ORDER BY is_low_stock DESC, current_stock ASC, name ASC LIMIT %d OFFSET %d", $limit, $offset);
+$sql = "
+    SELECT *
+    FROM ({$productGroupSql}) products
+    ORDER BY product_name ASC
+    LIMIT %d OFFSET %d
+";
+$sql = sprintf($sql, $limit, $offset);
 
 if (!empty($params)) {
     $stmt = $pdo->prepare($sql);
@@ -48,12 +74,12 @@ if (!empty($params)) {
 } else {
     $stmt = $pdo->query($sql);
 }
-$supplies = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$supplyProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
 require_once __DIR__ . '/../includes/topbar.php';
-require_once __DIR__ . '/../includes/inventory-hub-nav.php';
+
 ?>
 
 <div class="card shadow mb-4">
@@ -80,30 +106,38 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                 <thead class="thead-light">
                     <tr>
                         <th width="55">No.</th>
-                        <th>Name</th>
-                        <th>Category</th>
+                        <th>Product</th>
+                        <th>Variants</th>
                         <th>Unit</th>
-                        <th>Stock</th>
+                        <th>Total Stock</th>
+                        <th>Purchased</th>
                         <th>Min</th>
                         <th>Status</th>
-                        <th>Unit Price</th>
-                        <th>Supplier</th>
-                        <th width="170">Actions</th>
+                        <th>Last Purchase</th>
+                        <th width="120">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($supplies as $idx => $s): ?>
+                    <?php foreach ($supplyProducts as $idx => $s): ?>
                         <?php
                             $isLow = (int)($s['current_stock'] ?? 0) <= (int)($s['minimum_stock'] ?? 0);
                             $isOut = (int)($s['current_stock'] ?? 0) <= 0;
                             $rowNumber = ($page - 1) * $limit + $idx + 1;
+                            $lastPurchase = !empty($s['last_purchase_at']) ? date('M j, Y', strtotime((string)$s['last_purchase_at'])) : '-';
+                            $displayName = trim((string)($s['product_name'] ?? ''));
+                            $variantsHref = 'supply-variants.php?' . http_build_query(['name' => (string)($s['product_key'] ?? '')]);
                         ?>
                         <tr class="<?= $isOut ? 'row-stock-out' : ($isLow ? 'row-low-stock' : '') ?>">
                             <td><?= $rowNumber ?></td>
-                            <td><?= htmlspecialchars($s['name']) ?></td>
-                            <td><?= htmlspecialchars($s['category']) ?></td>
-                            <td><?= htmlspecialchars($s['unit']) ?></td>
+                            <td>
+                                <a href="<?= htmlspecialchars($variantsHref) ?>" class="font-weight-bold">
+                                    <?= htmlspecialchars($displayName) ?>
+                                </a>
+                            </td>
+                            <td><?= (int)$s['variant_count'] ?></td>
+                            <td><?= htmlspecialchars((string)($s['unit_label'] ?? '-')) ?></td>
                             <td><?= (int)$s['current_stock'] ?></td>
+                            <td><?= (int)$s['purchase_quantity'] ?></td>
                             <td><?= (int)$s['minimum_stock'] ?></td>
                             <td>
                                 <?php if ($isOut): ?>
@@ -114,17 +148,10 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                                     <span class="badge badge-success">OK</span>
                                 <?php endif; ?>
                             </td>
-                            <td>₱<?= number_format($s['unit_price'], 2) ?></td>
-                            <td><?= htmlspecialchars($s['supplier'] ?? '-') ?></td>
+                            <td><?= htmlspecialchars($lastPurchase) ?></td>
                             <td class="table-actions">
-                                <a href="inventory.php?item_type=supply&amp;item_id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-outline-secondary btn-icon-action" title="Stock movements for this supply" aria-label="Stock movements for this supply">
-                                    <i class="fas fa-exchange-alt"></i>
-                                </a>
-                                <a href="supply-form.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit supply">
-                                    <i class="fas fa-pen"></i>
-                                </a>
-                                <a href="supply-delete.php?id=<?= (int)$s['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Delete this supply?" title="Delete" aria-label="Delete supply">
-                                    <i class="fas fa-trash"></i>
+                                <a href="<?= htmlspecialchars($variantsHref) ?>" class="btn btn-sm btn-outline-secondary btn-icon-action" title="Open variants" aria-label="Open variants">
+                                    <i class="fas fa-list"></i>
                                 </a>
                             </td>
                         </tr>
@@ -136,7 +163,7 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
         <?php if ($total_items > 0): ?>
         <div class="d-flex justify-content-between align-items-center mt-3">
             <div class="small text-muted">
-                Showing <?= ($offset + 1) ?> to <?= min($offset + count($supplies), $total_items) ?> of <?= $total_items ?> supplies
+                Showing <?= ($offset + 1) ?> to <?= min($offset + count($supplyProducts), $total_items) ?> of <?= $total_items ?> supply products
             </div>
             <nav aria-label="Supplies pagination">
                 <ul class="pagination pagination-sm mb-0">

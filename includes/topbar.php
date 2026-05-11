@@ -1,10 +1,16 @@
     <div id="content-wrapper" class="d-flex flex-column">
         <div id="content">
             <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
-                <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                <button id="sidebarToggle" class="btn btn-link d-none d-md-inline-block rounded-circle mr-3" title="Toggle sidebar">
                     <i class="fa fa-bars"></i>
                 </button>
-                <span class="navbar-brand text-gray-800"><?= htmlspecialchars($page_title ?? 'Dashboard') ?></span>
+                <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3" title="Toggle sidebar">
+                    <i class="fa fa-bars"></i>
+                </button>
+                <span class="navbar-brand text-gray-800 d-inline-flex align-items-center app-title-brand">
+                    <img src="<?= htmlspecialchars($base_url ?? '') ?>assets/images/piao_logo.png" alt="Barangay Piao logo" class="app-title-logo">
+                    <span><?= htmlspecialchars($page_title ?? 'Dashboard') ?></span>
+                </span>
                 <ul class="navbar-nav ml-auto">
                     <li class="nav-item dropdown no-arrow">
                         <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">

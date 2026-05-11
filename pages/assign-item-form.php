@@ -2,32 +2,24 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 /**
  * Apply (or revert) the stock effect of an assignment.
- *  Supply  assigned  +1 → current_stock -= qty
- *  Supply  returned  +1 → current_stock += qty
- *  Equipment assigned +1 → status = unservicable
- *  Equipment returned +1 → status = servicable
+ *  Supply  assigned  +1 -> current_stock -= qty
+ *  Supply items are consumable; returned supply assignments are not allowed.
+ *  Equipment assignment does not change serviceability condition.
  *  Inventory type has no direct stock effect (references a transaction).
  */
 function applyAssignmentEffects(PDO $pdo, string $itemType, int $itemRefId, string $status, int $qty, int $direction = 1): void
 {
     if ($itemType === 'supply') {
-        $delta = ($status === 'assigned' ? -$qty : $qty) * $direction;
+        $delta = ($status === 'assigned' ? -$qty : 0) * $direction;
         if ($delta !== 0) {
             // GREATEST ensures the column never drops below 0 at the DB level.
             $pdo->prepare("UPDATE supplies SET current_stock = GREATEST(current_stock + ?, 0) WHERE id = ?")
                 ->execute([$delta, $itemRefId]);
         }
-    } elseif ($itemType === 'equipment') {
-        if ($status === 'assigned') {
-            $newStatus = $direction === 1 ? 'unservicable' : 'servicable';
-        } else {
-            $newStatus = $direction === 1 ? 'servicable' : 'unservicable';
-        }
-        $pdo->prepare("UPDATE equipment SET status = ? WHERE id = ?")
-            ->execute([$newStatus, $itemRefId]);
     }
 }
 
@@ -44,8 +36,17 @@ $page_title = $row ? 'Edit Assigned Item' : 'Assign Item';
 $current_page = 'assign_items';
 $base_url = '../';
 
-$supplies = $pdo->query("SELECT id, name, current_stock FROM supplies ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
-$equipment = $pdo->query("SELECT id, name, serial_number, status FROM equipment ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+$supplySummarySql = osaeits_supply_movement_summary_sql();
+$supplyStockExpr = osaeits_supply_stock_expression('tx', 's');
+$supplyCodeExpr = osaeits_item_code_select_expr($pdo, 's', 'supply');
+$supplies = $pdo->query("
+    SELECT s.id, {$supplyCodeExpr} AS item_code, s.name, s.description, {$supplyStockExpr} AS current_stock
+    FROM supplies s
+    LEFT JOIN ({$supplySummarySql}) tx ON tx.item_id = s.id
+    ORDER BY s.name ASC, s.description ASC
+")->fetchAll(PDO::FETCH_ASSOC);
+$equipmentCodeExpr = osaeits_item_code_select_expr($pdo, 'e', 'equipment');
+$equipment = $pdo->query("SELECT id, {$equipmentCodeExpr} AS item_code, name, serial_number, status FROM equipment e ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 $inventory = $pdo->query("SELECT id, item_type, transaction_type, quantity, created_at FROM transactions ORDER BY created_at DESC LIMIT 500")->fetchAll(PDO::FETCH_ASSOC);
 
 $error = '';
@@ -66,10 +67,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($item_type === '' || $item_ref_id <= 0 || $assigned_to === '' || $assigned_date === '') {
         $error = 'Item type, item, assigned to, and assigned date are required.';
+    } elseif ($item_type === 'supply' && $status === 'returned') {
+        $error = 'Supplies are consumable and cannot be returned. Use equipment for returnable items.';
     } else {
         // Validate referenced item exists.
         if ($item_type === 'supply') {
-            $chk = $pdo->prepare("SELECT id, current_stock FROM supplies WHERE id = ?");
+            $chk = $pdo->prepare("SELECT id FROM supplies WHERE id = ?");
         } elseif ($item_type === 'equipment') {
             $chk = $pdo->prepare("SELECT id FROM equipment WHERE id = ?");
             $quantity = 1;
@@ -83,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // For supplies being assigned, verify enough stock is available after reverting old effect.
             if ($item_type === 'supply' && $status === 'assigned') {
-                $availableStock = (int)$itemRow['current_stock'];
+                $availableStock = osaeits_supply_current_stock($pdo, $item_ref_id);
                 // If editing, the old assignment may have already reduced the stock — add it back for comparison.
                 if ($row && $row['item_type'] === 'supply' && (int)$row['item_ref_id'] === $item_ref_id && $row['status'] === 'assigned') {
                     $availableStock += (int)$row['quantity'];
@@ -275,13 +278,16 @@ function sourceForType(type) {
 
 function itemLabel(type, item) {
     if (type === 'supply') {
-        return item.name + ' (stock: ' + item.current_stock + ')';
+        const code = item.item_code ? item.item_code + ' - ' : '';
+        const details = item.description ? ' - ' + item.description : '';
+        return code + item.name + details + ' (stock: ' + item.current_stock + ')';
     }
     if (type === 'equipment') {
+        const code = item.item_code ? item.item_code + ' - ' : '';
         const label = item.serial_number
             ? (item.name + ' (' + item.serial_number + ')')
             : item.name;
-        return label + ' — ' + item.status;
+        return code + label + ' - ' + item.status;
     }
     return 'TX #' + item.id + ' - ' + item.item_type + ' / ' + item.transaction_type + ' / qty ' + item.quantity;
 }
@@ -339,6 +345,18 @@ function validateQty() {
     } else {
         // No supply-assign restriction — remove html max
         qtyEl.removeAttribute('max');
+    }
+}
+
+function updateStatusOptions() {
+    const type = document.getElementById('item_type').value;
+    const statusSelect = document.querySelector('select[name="status"]');
+    const returnedOption = statusSelect.querySelector('option[value="returned"]');
+    if (!returnedOption) return;
+
+    returnedOption.disabled = type === 'supply';
+    if (type === 'supply' && statusSelect.value === 'returned') {
+        statusSelect.value = 'assigned';
     }
 }
 
@@ -453,6 +471,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
 document.getElementById('item_type').addEventListener('change', function() {
     document.getElementById('item_ref_id').value = '';
+    updateStatusOptions();
     renderItems();
     updateStockHint();
     validateQty();
@@ -467,6 +486,7 @@ document.querySelector('select[name="status"]').addEventListener('change', funct
     validateQty();
 });
 
+updateStatusOptions();
 renderItems();
 updateStockHint();
 validateQty();

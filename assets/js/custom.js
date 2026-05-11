@@ -23,4 +23,46 @@ $(function() {
             });
         });
     });
+    
+    // Sidebar responsive toggle (desktop collapse + mobile overlay open)
+    (function() {
+        var $body = $('body');
+        var storageKey = 'osaeits-sidebar';
+        function isMobile() { return window.matchMedia('(max-width: 767.98px)').matches; }
+        function applyStored() {
+            try {
+                var v = localStorage.getItem(storageKey);
+                if (!v) return;
+                if (v === 'collapsed') {
+                    $body.addClass('sidebar-collapsed');
+                    $body.removeClass('sidebar-open');
+                } else if (v === 'open') {
+                    $body.addClass('sidebar-open');
+                }
+            } catch (e) { /* ignore */ }
+        }
+        $('#sidebarToggle, #sidebarToggleTop').on('click', function(e) {
+            e.preventDefault();
+            if (isMobile()) {
+                $body.toggleClass('sidebar-open');
+            } else {
+                $body.toggleClass('sidebar-collapsed');
+                try {
+                    if ($body.hasClass('sidebar-collapsed')) localStorage.setItem(storageKey, 'collapsed');
+                    else localStorage.removeItem(storageKey);
+                } catch (e) { /* ignore */ }
+            }
+        });
+        // Close mobile sidebar on outside click/touch
+        $(document).on('click touchstart', function(e) {
+            if (isMobile() && $body.hasClass('sidebar-open')) {
+                if (!$(e.target).closest('#accordionSidebar, #sidebarToggle, #sidebarToggleTop').length) {
+                    $body.removeClass('sidebar-open');
+                }
+            }
+        });
+        // Escape to close
+        $(document).on('keydown', function(e) { if (e.key === 'Escape') $body.removeClass('sidebar-open'); });
+        applyStored();
+    })();
 });

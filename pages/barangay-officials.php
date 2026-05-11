@@ -99,7 +99,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                                     <a href="barangay-official-form.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit official">
                                         <i class="fas fa-pen"></i>
                                     </a>
-                                    <a href="barangay-official-delete.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Delete this official?" title="Delete" aria-label="Delete official">
+                                    <a href="barangay-official-delete.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this official to trash?" title="Move to trash" aria-label="Move official to trash">
                                         <i class="fas fa-trash"></i>
                                     </a>
                                 </td>

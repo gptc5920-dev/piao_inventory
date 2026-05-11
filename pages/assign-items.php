@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 $page_title = 'Assign Items';
 $current_page = 'assign_items';
@@ -22,8 +23,12 @@ if (in_array($status, ['assigned', 'returned'], true)) {
     $params[] = $status;
 }
 
+$supplyCodeExpr = osaeits_item_code_select_expr($pdo, 's', 'supply');
+$equipmentCodeExpr = osaeits_item_code_select_expr($pdo, 'e', 'equipment');
 $sql = "SELECT a.*, u.first_name, u.last_name,
+               {$supplyCodeExpr} AS supply_code,
                s.name AS supply_name,
+               {$equipmentCodeExpr} AS equipment_code,
                e.name AS equipment_name,
                e.serial_number AS equipment_serial,
                t.transaction_type,
@@ -98,9 +103,9 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <?php
                                 $itemLabel = '-';
                                 if ($r['item_type'] === 'supply') {
-                                    $itemLabel = (string)($r['supply_name'] ?? ('Supply #' . (int)$r['item_ref_id']));
+                                    $itemLabel = trim((string)($r['supply_code'] ?? '') . ' - ' . (string)($r['supply_name'] ?? ('Supply #' . (int)$r['item_ref_id'])), ' -');
                                 } elseif ($r['item_type'] === 'equipment') {
-                                    $itemLabel = (string)($r['equipment_name'] ?? ('Equipment #' . (int)$r['item_ref_id']));
+                                    $itemLabel = trim((string)($r['equipment_code'] ?? '') . ' - ' . (string)($r['equipment_name'] ?? ('Equipment #' . (int)$r['item_ref_id'])), ' -');
                                     if (!empty($r['equipment_serial'])) {
                                         $itemLabel .= ' (' . $r['equipment_serial'] . ')';
                                     }
@@ -123,7 +128,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                                 <td><?= htmlspecialchars(trim(($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? '')) ?: '-') ?></td>
                                 <td class="table-actions">
                                     <a href="assign-item-form.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit assignment"><i class="fas fa-pen"></i></a>
-                                    <a href="assign-item-delete.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Delete this assignment?" title="Delete" aria-label="Delete assignment"><i class="fas fa-trash"></i></a>
+                                    <a href="assign-item-delete.php?id=<?= (int)$r['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this assignment to trash?" title="Move to trash" aria-label="Move assignment to trash"><i class="fas fa-trash"></i></a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

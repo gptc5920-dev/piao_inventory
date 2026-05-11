@@ -2,63 +2,69 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 $page_title = 'Equipment';
 $current_page = 'equipment';
 $base_url = '../';
 
-function normalizeEquipmentStatus(string $status): string
-{
-    $status = strtolower(trim($status));
-    if (in_array($status, ['servicable', 'available', 'in_use', 'maintenance'], true)) {
-        return 'servicable';
-    }
-    if (in_array($status, ['unservicable', 'retired'], true)) {
-        return 'unservicable';
-    }
-    return $status;
-}
-
 $search = trim($_GET['search'] ?? '');
 $status = trim($_GET['status'] ?? '');
 
-// Pagination parameters
-$limit = 10; // Items per page
+$limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
 $offset = ($page - 1) * $limit;
 
-$sql = "SELECT * FROM equipment";
+$equipmentSummarySql = osaeits_equipment_movement_summary_sql();
+$fromSql = " FROM equipment e LEFT JOIN ({$equipmentSummarySql}) tx ON tx.item_id = e.id";
+$equipmentCodeExpr = osaeits_item_code_select_expr($pdo, 'e', 'equipment');
+
 $params = [];
 $where = [];
 if ($search !== '') {
-    $where[] = "(name LIKE ? OR category LIKE ? OR serial_number LIKE ? OR brand LIKE ?)";
-    $term = "%$search%";
-    $params = [$term, $term, $term, $term];
+    $where[] = "({$equipmentCodeExpr} LIKE ? OR e.name LIKE ? OR e.description LIKE ? OR e.category LIKE ? OR e.serial_number LIKE ? OR e.brand LIKE ? OR e.model LIKE ?)";
+    $term = "%{$search}%";
+    $params = [$term, $term, $term, $term, $term, $term, $term];
 }
 if (in_array($status, ['servicable', 'unservicable'], true)) {
-    $where[] = "status = ?";
+    $where[] = "e.status = ?";
     $params[] = $status;
 }
-if (!empty($where)) {
-    $sql .= " WHERE " . implode(" AND ", $where);
-}
+$whereSql = !empty($where) ? ' WHERE ' . implode(' AND ', $where) : '';
 
-// Get total count for pagination
-$countSql = $sql;
-$countStmt = $pdo->prepare($countSql);
+$productGroupSql = "
+    SELECT
+        LOWER(TRIM(e.name)) AS product_key,
+        MIN(e.name) AS product_name,
+        COUNT(*) AS asset_count,
+        SUM(CASE WHEN COALESCE(tx.issued_balance, 0) > 0 THEN 1 ELSE 0 END) AS issued_count,
+        SUM(CASE WHEN COALESCE(tx.issued_balance, 0) > 0 THEN 0 ELSE 1 END) AS available_count,
+        SUM(CASE WHEN e.status = 'servicable' THEN 1 ELSE 0 END) AS servicable_count,
+        SUM(CASE WHEN e.status = 'unservicable' THEN 1 ELSE 0 END) AS unservicable_count,
+        MAX(tx.last_movement_at) AS last_movement_at
+    {$fromSql}
+    {$whereSql}
+    GROUP BY LOWER(TRIM(e.name))
+";
+
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM ({$productGroupSql}) product_count");
 $countStmt->execute($params);
-$total_items = $countStmt->rowCount();
-$total_pages = ceil($total_items / $limit);
+$total_items = (int)$countStmt->fetchColumn();
+$total_pages = (int)ceil($total_items / $limit);
 
-$sql .= " ORDER BY name ASC LIMIT " . $limit . " OFFSET " . $offset;
+$sql = "
+    SELECT *
+    FROM ({$productGroupSql}) products
+    ORDER BY product_name ASC
+    LIMIT {$limit} OFFSET {$offset}
+";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$equipment = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$equipmentProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
 require_once __DIR__ . '/../includes/topbar.php';
-require_once __DIR__ . '/../includes/inventory-hub-nav.php';
 ?>
 
 <div class="card shadow mb-4">
@@ -82,44 +88,36 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                 <thead class="thead-light">
                     <tr>
                         <th width="55">No.</th>
-                        <th>Name</th>
-                        <th>Category</th>
-                        <th>Serial</th>
-                        <th>Brand / Model</th>
-                        <th>Status</th>
-                        <th>Location</th>
-                        <th>Purok/Area</th>
-                        <th>Appropriation</th>
-                        <th>Person Incharge</th>
-                        <th>Purchase Price</th>
-                        <th width="170">Actions</th>
+                        <th>Product</th>
+                        <th>Assets</th>
+                        <th>Available</th>
+                        <th>Issued</th>
+                        <th>Serviceable</th>
+                        <th>Unserviceable</th>
+                        <th>Last Issue/Return</th>
+                        <th width="120">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($equipment as $idx => $e): ?>
-                        <?php $rowNumber = ($page - 1) * $limit + $idx + 1; ?>
+                    <?php foreach ($equipmentProducts as $idx => $e): ?>
+                        <?php
+                            $rowNumber = ($page - 1) * $limit + $idx + 1;
+                            $lastMovement = !empty($e['last_movement_at']) ? date('M j, Y', strtotime((string)$e['last_movement_at'])) : '-';
+                            $productName = trim((string)($e['product_name'] ?? ''));
+                            $variantsHref = 'equipment-variants.php?' . http_build_query(['name' => (string)($e['product_key'] ?? '')]);
+                        ?>
                         <tr>
                             <td><?= $rowNumber ?></td>
-                            <td><?= htmlspecialchars($e['name']) ?></td>
-                            <td><?= htmlspecialchars($e['category']) ?></td>
-                            <td><?= htmlspecialchars($e['serial_number'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($e['brand'] ?? '') ?> / <?= htmlspecialchars($e['model'] ?? '-') ?></td>
-                            <?php $s = normalizeEquipmentStatus((string)$e['status']); ?>
-                            <td><span class="badge badge-<?= $s === 'servicable' ? 'success' : 'secondary' ?>"><?= $s === 'servicable' ? 'Servicable' : 'Unservicable' ?></span></td>
-                            <td><?= htmlspecialchars($e['location'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($e['purok_area'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($e['appropriation'] ?? '-') ?></td>
-                            <td><?= htmlspecialchars($e['person_incharge'] ?? '-') ?></td>
-                            <td>₱<?= number_format($e['purchase_price'], 2) ?></td>
+                            <td><a href="<?= htmlspecialchars($variantsHref) ?>" class="font-weight-bold"><?= htmlspecialchars($productName) ?></a></td>
+                            <td><?= (int)$e['asset_count'] ?></td>
+                            <td><?= (int)$e['available_count'] ?></td>
+                            <td><?= (int)$e['issued_count'] ?></td>
+                            <td><span class="badge badge-success"><?= (int)$e['servicable_count'] ?></span></td>
+                            <td><span class="badge badge-secondary"><?= (int)$e['unservicable_count'] ?></span></td>
+                            <td><?= htmlspecialchars($lastMovement) ?></td>
                             <td class="table-actions">
-                                <a href="inventory.php?item_type=equipment&amp;item_id=<?= (int)$e['id'] ?>" class="btn btn-sm btn-outline-secondary btn-icon-action" title="Stock movements for this equipment" aria-label="Stock movements for this equipment">
-                                    <i class="fas fa-exchange-alt"></i>
-                                </a>
-                                <a href="equipment-form.php?id=<?= (int)$e['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit equipment">
-                                    <i class="fas fa-pen"></i>
-                                </a>
-                                <a href="equipment-delete.php?id=<?= (int)$e['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Delete this equipment?" title="Delete" aria-label="Delete equipment">
-                                    <i class="fas fa-trash"></i>
+                                <a href="<?= htmlspecialchars($variantsHref) ?>" class="btn btn-sm btn-outline-secondary btn-icon-action" title="Open equipment assets" aria-label="Open equipment assets">
+                                    <i class="fas fa-list"></i>
                                 </a>
                             </td>
                         </tr>
@@ -127,15 +125,15 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                 </tbody>
             </table>
         </div>
+
         <?php if ($total_items > 0): ?>
         <div class="d-flex justify-content-between align-items-center mt-3">
             <div class="small text-muted">
-                Showing <?= ($offset + 1) ?> to <?= min($offset + count($equipment), $total_items) ?> of <?= $total_items ?> equipment
+                Showing <?= ($offset + 1) ?> to <?= min($offset + count($equipmentProducts), $total_items) ?> of <?= $total_items ?> equipment products
             </div>
             <nav aria-label="Equipment pagination">
                 <ul class="pagination pagination-sm mb-0">
                     <?php
-                    // Build base query params, preserving search and filter
                     $baseParams = [];
                     if (!empty($search)) {
                         $baseParams['search'] = $search;
@@ -144,13 +142,11 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                         $baseParams['status'] = $status;
                     }
 
-                    // Helper function to build pagination URL
-                    $buildPaginationUrl = function($pageNum, $params) {
+                    $buildPaginationUrl = function ($pageNum, $params) {
                         $params['page'] = $pageNum;
                         return 'equipment.php?' . http_build_query($params);
                     };
 
-                    // Previous button
                     if ($page > 1):
                     ?>
                         <li class="page-item">
@@ -170,7 +166,6 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                     $startPage = max(1, $page - 2);
                     $endPage = min($total_pages, $page + 2);
 
-                    // First page if not in range
                     if ($startPage > 1): ?>
                         <li class="page-item">
                             <a class="page-link" href="<?= $buildPaginationUrl(1, $baseParams) ?>">1</a>
@@ -186,9 +181,7 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                         </li>
                     <?php endfor; ?>
 
-                    <?php
-                    // Last page if not in range
-                    if ($endPage < $total_pages): ?>
+                    <?php if ($endPage < $total_pages): ?>
                         <?php if ($endPage < $total_pages - 1): ?>
                             <li class="page-item disabled"><span class="page-link">...</span></li>
                         <?php endif; ?>
@@ -197,10 +190,7 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                         </li>
                     <?php endif; ?>
 
-                    <?php
-                    // Next button
-                    if ($page < $total_pages):
-                    ?>
+                    <?php if ($page < $total_pages): ?>
                         <li class="page-item">
                             <a class="page-link" href="<?= $buildPaginationUrl($page + 1, $baseParams) ?>" aria-label="Next">
                                 <span aria-hidden="true">&raquo;</span>
@@ -216,6 +206,8 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
                 </ul>
             </nav>
         </div>
+        <?php else: ?>
+            <div class="text-center text-muted py-4">No equipment found.</div>
         <?php endif; ?>
     </div>
 </div>

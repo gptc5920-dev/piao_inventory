@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/audit-display-helpers.php';
 
 if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: dashboard.php');
@@ -40,9 +41,13 @@ function action_label(string $action): string
         'equipment.create' => 'Added new equipment',
         'equipment.update' => 'Changed equipment details or status',
         'equipment.delete' => 'Removed equipment from the list',
-        'transaction.create' => 'Recorded a stock movement (in, out, return, or adjustment)',
-        'transaction.update' => 'Corrected an existing stock movement',
-        'transaction.delete' => 'Removed a stock movement from the records',
+        'transaction.create' => 'Recorded a transaction (purchase, issue, or return)',
+        'transaction.update' => 'Corrected an existing transaction',
+        'transaction.delete' => 'Moved a transaction to trash',
+        'transaction.restore' => 'Restored a transaction from trash',
+        'transaction.permanent_delete' => 'Blocked permanent transaction deletion',
+        'trash.restore' => 'Restored a record from trash',
+        'trash.permanent_delete' => 'Blocked permanent record deletion',
         'official.create' => 'Added a barangay official',
         'official.update' => 'Updated a barangay official’s information',
         'official.delete' => 'Removed a barangay official from the list',
@@ -68,7 +73,8 @@ function entity_label(?string $entityType, $entityId): string
         'user' => 'User profile',
         'supply' => 'Supply item',
         'equipment' => 'Equipment',
-        'transaction' => 'Stock movement',
+        'transaction' => 'Transaction',
+        'transaction_trash' => 'Trash item',
         'barangay_official' => 'Barangay official',
         'assign_item' => 'Assignment',
     ];
@@ -132,7 +138,7 @@ function humanize_transaction_details(array $row, bool $wasRemoved = false): str
         $kind,
         $itemId > 0 ? $itemId : 0
     );
-    $body .= 'Movement type: ' . $tt . '.';
+    $body .= 'Transaction type: ' . $tt . '.';
     if ($ref !== '') {
         $body .= ' Reference / document no.: ' . $ref . '.';
     }
@@ -155,12 +161,12 @@ function details_summary(string $action, ?string $entityType, $rawDetails): stri
         return (string)$rawDetails;
     }
 
-    // Stock movement removed — details are under snapshot
+    // Transaction removed - details are under snapshot.
     if ($action === 'transaction.delete' && !empty($decoded['snapshot']) && is_array($decoded['snapshot'])) {
         return humanize_transaction_details($decoded['snapshot'], true);
     }
 
-    // Stock movement added or edited
+    // Transaction added or edited.
     if (in_array($action, ['transaction.create', 'transaction.update'], true)
         && isset($decoded['transaction_type'], $decoded['item_type'], $decoded['quantity'])) {
         return humanize_transaction_details($decoded, false);
@@ -368,7 +374,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <label class="small mb-1">Record area</label>
                         <select name="entity_type" class="form-control form-control-sm">
                             <option value="">All areas</option>
-                            <option value="transaction" <?= $entity_type === 'transaction' ? 'selected' : '' ?>>Stock movements</option>
+                            <option value="transaction" <?= $entity_type === 'transaction' ? 'selected' : '' ?>>Transactions</option>
                             <option value="supply" <?= $entity_type === 'supply' ? 'selected' : '' ?>>Supplies</option>
                             <option value="equipment" <?= $entity_type === 'equipment' ? 'selected' : '' ?>>Equipment</option>
                             <option value="user" <?= $entity_type === 'user' ? 'selected' : '' ?>>User accounts</option>
@@ -395,7 +401,6 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <th>Who did it</th>
                             <th>What happened</th>
                             <th>What it relates to</th>
-                            <th class="small" title="Technical reference only; you can usually ignore this.">Network ID</th>
                             <th>More detail (in plain words)</th>
                         </tr>
                     </thead>
@@ -409,16 +414,15 @@ require_once __DIR__ . '/../includes/topbar.php';
                             if ($who === '') {
                                 $who = '—';
                             }
-                            $actionText = action_label((string)$row['action']);
-                            $entityLabel = entity_label($row['entity_type'] ?? null, $row['entity_id'] ?? null);
-                            $detailsStr = htmlspecialchars(details_summary((string)$row['action'], $row['entity_type'] ?? null, $row['details'] ?? null));
+                            $actionText = osaeits_audit_action_label((string)$row['action']);
+                            $entityLabel = osaeits_audit_entity_label($row['entity_type'] ?? null, $row['entity_id'] ?? null);
+                            $detailsStr = htmlspecialchars(osaeits_audit_details_summary((string)$row['action'], $row['entity_type'] ?? null, $row['details'] ?? null));
                             ?>
                             <tr>
                                 <td nowrap><?= htmlspecialchars(date('F j, Y \a\t g:i A', strtotime($row['created_at']))) ?></td>
                                 <td><?= htmlspecialchars($who) ?></td>
                                 <td><?= htmlspecialchars($actionText) ?></td>
                                 <td class="small"><?= htmlspecialchars($entityLabel) ?></td>
-                                <td class="small"><?= htmlspecialchars($row['ip_address'] ?? '—') ?></td>
                                 <td class="small text-break" style="max-width: 360px;"><?= $detailsStr ?></td>
                             </tr>
                         <?php endforeach; ?>

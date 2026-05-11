@@ -2,18 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
-
-function normalizeEquipmentStatus(string $status): string
-{
-    $status = strtolower(trim($status));
-    if (in_array($status, ['servicable', 'available', 'in_use', 'maintenance'], true)) {
-        return 'servicable';
-    }
-    if (in_array($status, ['unservicable', 'retired'], true)) {
-        return 'unservicable';
-    }
-    return 'servicable';
-}
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $item = null;
@@ -28,17 +17,18 @@ $page_title = $item ? 'Edit Equipment' : 'Add Equipment';
 $current_page = 'equipment';
 $base_url = '../';
 $fixed_category = 'Equipment';
+$item_code_display = $item ? osaeits_ensure_item_identifier($pdo, 'equipment', $id) : 'Auto-generated';
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $description = trim($_POST['description'] ?? '');
+    $name = osaeits_clean_inventory_text($_POST['name'] ?? '');
+    $description = osaeits_clean_inventory_text($_POST['description'] ?? '');
     $category = $fixed_category;
-    $serial_number = trim($_POST['serial_number'] ?? '');
-    $model = trim($_POST['model'] ?? '');
-    $brand = trim($_POST['brand'] ?? '');
-    $status = normalizeEquipmentStatus($_POST['status'] ?? 'servicable');
-    $location = trim($_POST['location'] ?? '');
+    $serial_number = osaeits_clean_inventory_text($_POST['serial_number'] ?? '');
+    $model = osaeits_clean_inventory_text($_POST['model'] ?? '');
+    $brand = osaeits_clean_inventory_text($_POST['brand'] ?? '');
+    $status = osaeits_normalize_equipment_status($_POST['status'] ?? 'servicable');
+    $location = osaeits_clean_inventory_text($_POST['location'] ?? '');
     $purchase_date = trim($_POST['purchase_date'] ?? '') ?: null;
     $warranty_expiry = trim($_POST['warranty_expiry'] ?? '') ?: null;
     $purchase_price = (float)($_POST['purchase_price'] ?? 0);
@@ -46,42 +36,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$name) {
         $error = 'Name is required.';
     } else {
-        if ($item) {
-            $stmt = $pdo->prepare("UPDATE equipment SET name=?, description=?, category=?, serial_number=?, model=?, brand=?, status=?, location=?, purchase_date=?, warranty_expiry=?, purchase_price=? WHERE id=?");
-            $stmt->execute([$name, $description, $category, $serial_number ?: null, $model ?: null, $brand ?: null, $status, $location ?: null, $purchase_date, $warranty_expiry, $purchase_price, $id]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO equipment (name, description, category, serial_number, model, brand, status, location, purchase_date, warranty_expiry, purchase_price) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-            $stmt->execute([$name, $description, $category, $serial_number ?: null, $model ?: null, $brand ?: null, $status, $location ?: null, $purchase_date, $warranty_expiry, $purchase_price]);
+        $duplicate = osaeits_find_equipment_duplicate($pdo, $name, $serial_number, $brand, $model, $id);
+        if ($duplicate) {
+            $error = 'Equipment with the same serial number already exists.';
         }
-        require_once __DIR__ . '/../includes/activity-log.php';
-        $actor = (int)$_SESSION['user_id'];
-        if ($item) {
-            log_activity($pdo, $actor, 'equipment.update', 'equipment', $id, ['name' => $name, 'status' => $status]);
-        } else {
-            log_activity($pdo, $actor, 'equipment.create', 'equipment', (int)$pdo->lastInsertId(), ['name' => $name, 'status' => $status]);
+
+        if ($error === '') {
+            if ($item) {
+                $stmt = $pdo->prepare("UPDATE equipment SET name=?, description=?, category=?, serial_number=?, model=?, brand=?, status=?, location=?, purchase_date=?, warranty_expiry=?, purchase_price=? WHERE id=?");
+                $stmt->execute([$name, $description, $category, $serial_number ?: null, $model ?: null, $brand ?: null, $status, $location ?: null, $purchase_date, $warranty_expiry, $purchase_price, $id]);
+                $targetId = $id;
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO equipment (name, description, category, serial_number, model, brand, status, location, purchase_date, warranty_expiry, purchase_price) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+                $stmt->execute([$name, $description, $category, $serial_number ?: null, $model ?: null, $brand ?: null, $status, $location ?: null, $purchase_date, $warranty_expiry, $purchase_price]);
+                $targetId = (int)$pdo->lastInsertId();
+            }
+            $itemCode = osaeits_ensure_item_identifier($pdo, 'equipment', $targetId);
+            require_once __DIR__ . '/../includes/activity-log.php';
+            $actor = (int)$_SESSION['user_id'];
+            if ($item) {
+                log_activity($pdo, $actor, 'equipment.update', 'equipment', $targetId, ['name' => $name, 'item_code' => $itemCode, 'status' => $status]);
+            } else {
+                log_activity($pdo, $actor, 'equipment.create', 'equipment', $targetId, ['name' => $name, 'item_code' => $itemCode, 'status' => $status]);
+            }
+            $_SESSION['success_message'] = $item ? 'Equipment updated.' : 'Equipment added.';
+            header('Location: equipment.php');
+            exit;
         }
-        $_SESSION['success_message'] = $item ? 'Equipment updated.' : 'Equipment added.';
-        header('Location: equipment.php');
-        exit;
     }
 }
 
 if ($error && $_POST) {
     $item = array_merge(['name'=>'','description'=>'','category'=>$fixed_category,'serial_number'=>'','model'=>'','brand'=>'','status'=>'servicable','location'=>'','purok_area'=>'','appropriation'=>'','person_incharge'=>'','purchase_date'=>'','warranty_expiry'=>'','purchase_price'=>0], $_POST);
     $item['category'] = $fixed_category;
-    $item['status'] = normalizeEquipmentStatus((string)($item['status'] ?? 'servicable'));
+    $item['status'] = osaeits_normalize_equipment_status((string)($item['status'] ?? 'servicable'));
 }
 if (!$item) {
     $item = ['name'=>'','description'=>'','category'=>$fixed_category,'serial_number'=>'','model'=>'','brand'=>'','status'=>'servicable','location'=>'','purok_area'=>'','appropriation'=>'','person_incharge'=>'','purchase_date'=>'','warranty_expiry'=>'','purchase_price'=>0];
 } else {
     $item['category'] = $fixed_category;
-    $item['status'] = normalizeEquipmentStatus((string)($item['status'] ?? 'servicable'));
+    $item['status'] = osaeits_normalize_equipment_status((string)($item['status'] ?? 'servicable'));
 }
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
 require_once __DIR__ . '/../includes/topbar.php';
-require_once __DIR__ . '/../includes/inventory-hub-nav.php';
 ?>
 
 <div class="card shadow mb-4">
@@ -89,13 +88,17 @@ require_once __DIR__ . '/../includes/inventory-hub-nav.php';
         <h6 class="m-0 font-weight-bold text-primary"><?= htmlspecialchars($page_title) ?></h6>
         <?php if ($id > 0): ?>
             <a href="inventory.php?<?= http_build_query(['item_type' => 'equipment', 'item_id' => $id]) ?>" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-exchange-alt"></i> Movements for this equipment
+                <i class="fas fa-exchange-alt"></i> Transaction history
             </a>
         <?php endif; ?>
     </div>
     <div class="card-body">
         <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
         <form method="post">
+            <div class="form-group">
+                <label>Item Code</label>
+                <input type="text" class="form-control" value="<?= htmlspecialchars($item_code_display) ?>" readonly>
+            </div>
             <div class="form-group">
                 <label>Name *</label>
                 <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($item['name']) ?>" required>

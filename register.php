@@ -55,12 +55,14 @@ $page_title = 'Register';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - OSAEITS</title>
+    <link rel="icon" type="image/png" href="assets/images/piao_logo.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <link href="assets/css/custom.css" rel="stylesheet">
     <style>
         .login-page { background: var(--osaeits-bg, #F0E8E4); min-height: 100vh; padding: 2rem 0; }
-        .login-logo { width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, #4a7c59 0%, #2c5f7a 40%, #c9a227 70%, #b85450 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+        .login-logo { width: 90px; height: 90px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
+        .login-logo img { width: 92px; height: 92px; object-fit: contain; }
         .login-logo i { font-size: 2.2rem; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         .login-title { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.2); font-size: 1.35rem; font-weight: 600; margin-bottom: 0.25rem; }
         .login-subtitle { color: rgba(255,255,255,0.9); font-size: 0.95rem; text-shadow: 0 1px 2px rgba(0,0,0,0.15); margin-bottom: 2rem; }
@@ -81,7 +83,7 @@ $page_title = 'Register';
         <div class="row justify-content-center align-items-center min-vh-100 py-4">
             <div class="col-11 col-sm-10 col-md-9 col-lg-6">
                 <div class="text-center mb-3 mb-md-4">
-                    <div class="login-logo"><i class="fas fa-boxes"></i></div>
+                    <div class="login-logo"><img src="assets/images/piao_logo.png" alt="Barangay Piao logo"></div>
                     <h1 class="login-title">Office Supplies and Equipment Inventory Tracker System</h1>
                     <p class="login-subtitle">Barangay Pio Roxas, Zamboanga del Norte</p>
                 </div>

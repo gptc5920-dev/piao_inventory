@@ -50,7 +50,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                                     <i class="fas fa-pen"></i>
                                 </a>
                                 <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                                    <a href="user-delete.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Delete this user?" title="Delete" aria-label="Delete user">
+                                    <a href="user-delete.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this user to trash?" title="Move to trash" aria-label="Move user to trash">
                                         <i class="fas fa-trash"></i>
                                     </a>
                                 <?php endif; ?>

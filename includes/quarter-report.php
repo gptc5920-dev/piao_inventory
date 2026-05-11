@@ -1,6 +1,6 @@
 <?php
 /**
- * Calendar quarters (consistent schedule): Q1 Jan–Mar, Q2 Apr–Jun, Q3 Jul–Sep, Q4 Oct–Dec.
+ * Calendar quarters (consistent schedule): Q1 Jan-Mar, Q2 Apr-Jun, Q3 Jul-Sep, Q4 Oct-Dec.
  */
 
 declare(strict_types=1);
@@ -16,7 +16,7 @@ function osaeits_quarter_bounds(int $year, int $quarter): array
     return [$start, $end];
 }
 
-/** @return array{0: int, 1: int} year, quarter 1–4 */
+/** @return array{0: int, 1: int} year, quarter 1-4 */
 function osaeits_current_quarter(?DateTimeInterface $now = null): array
 {
     $now = $now ?? new DateTimeImmutable('now');

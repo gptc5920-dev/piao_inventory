@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 require_once __DIR__ . '/../includes/quarter-report.php';
 
 $page_title = 'Reports';
@@ -20,9 +21,13 @@ if ($selectedQuarter < 1 || $selectedQuarter > 4) $selectedQuarter = $defaultQua
 $quarterLabel = osaeits_quarter_label($selectedYear, $selectedQuarter);
 $periodLine = "Reporting period: {$quarterLabel} ({$date_from} to {$date_to})";
 
+$equipmentCodeExpr = osaeits_item_code_select_expr($pdo, 'e', 'equipment');
+$supplyCodeExpr = osaeits_item_code_select_expr($pdo, 's', 'supply');
+
 $serviceableEquipmentStmt = $pdo->prepare(
-    "SELECT name, description, location, purok_area, appropriation, person_incharge
+    "SELECT {$equipmentCodeExpr} AS item_code, name, description, serial_number, brand, model, location, purok_area, appropriation, person_incharge
      FROM equipment
+     e
      WHERE LOWER(TRIM(status)) IN ('servicable', 'serviceable', 'available', 'in_use', 'maintenance')
      ORDER BY name ASC"
 );
@@ -30,8 +35,9 @@ $serviceableEquipmentStmt->execute();
 $serviceable_equipment_items = $serviceableEquipmentStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $unserviceableEquipmentStmt = $pdo->prepare(
-    "SELECT name, description, location, purok_area, appropriation, person_incharge
+    "SELECT {$equipmentCodeExpr} AS item_code, name, description, serial_number, brand, model, location, purok_area, appropriation, person_incharge
      FROM equipment
+     e
      WHERE LOWER(TRIM(status)) IN ('unservicable', 'unserviceable', 'retired')
      ORDER BY name ASC"
 );
@@ -39,8 +45,11 @@ $unserviceableEquipmentStmt->execute();
 $unserviceable_equipment_items = $unserviceableEquipmentStmt->fetchAll(PDO::FETCH_ASSOC);
 
 $inventoryStmt = $pdo->prepare(
-    "SELECT t.created_at, t.item_type, t.transaction_type, t.quantity, t.unit_price, t.total_amount,
-            s.name AS supply_name, e.name AS equipment_name, e.serial_number AS equipment_serial
+    "SELECT t.created_at, t.reference_number, t.item_type, t.transaction_type, t.quantity, t.unit_price, t.total_amount,
+            t.notes,
+            {$supplyCodeExpr} AS supply_code, s.name AS supply_name, s.description AS supply_description, s.supplier AS supply_supplier,
+            {$equipmentCodeExpr} AS equipment_code, e.name AS equipment_name, e.description AS equipment_description,
+            e.serial_number AS equipment_serial, e.brand AS equipment_brand, e.model AS equipment_model
      FROM transactions t
      LEFT JOIN supplies s ON t.item_type = 'supply' AND t.item_id = s.id
      LEFT JOIN equipment e ON t.item_type = 'equipment' AND t.item_id = e.id
@@ -91,6 +100,40 @@ $officialName = static function (mixed $row, string $fallback): string {
 
 $preparedByName = $officialName($treasurer, 'Treasurer');
 $notedByName = $officialName($captain, 'Barangay Captain');
+$formatPurchaseSupplier = static function (array $row): string {
+    foreach (preg_split('/\R/', (string)($row['notes'] ?? '')) ?: [] as $line) {
+        if (preg_match('/^\s*Supplier\s*:\s*(.+)$/i', $line, $matches)) {
+            $supplier = osaeits_clean_inventory_text($matches[1] ?? '');
+            return $supplier !== '' ? $supplier : '-';
+        }
+    }
+
+    $supplier = osaeits_clean_inventory_text($row['supply_supplier'] ?? '');
+    return $supplier !== '' ? $supplier : '-';
+};
+$formatTransactionRemark = static function (array $row) use ($formatPurchaseSupplier): string {
+    if (($row['transaction_type'] ?? '') === 'purchase') {
+        return $formatPurchaseSupplier($row);
+    }
+
+    $notes = osaeits_clean_inventory_text($row['notes'] ?? '');
+    return $notes !== '' ? $notes : '-';
+};
+
+$quarterPurchaseCount = 0;
+$quarterIssueCount = 0;
+$quarterReturnCount = 0;
+$quarterPurchaseTotal = 0.0;
+foreach ($inventory_items as $row) {
+    if (($row['transaction_type'] ?? '') === 'purchase') {
+        $quarterPurchaseCount++;
+        $quarterPurchaseTotal += (float)($row['total_amount'] ?? 0);
+    } elseif (($row['transaction_type'] ?? '') === 'issue') {
+        $quarterIssueCount++;
+    } elseif (($row['transaction_type'] ?? '') === 'return') {
+        $quarterReturnCount++;
+    }
+}
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
@@ -122,7 +165,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                     <label class="small mb-1">Quarter</label>
                     <select name="quarter_num" class="form-control form-control-sm">
                         <?php for ($q = 1; $q <= 4; $q++): ?>
-                            <option value="<?= $q ?>" <?= $q === $selectedQuarter ? 'selected' : '' ?>>Q<?= $q ?> (<?= ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'][$q - 1] ?>)</option>
+                            <option value="<?= $q ?>" <?= $q === $selectedQuarter ? 'selected' : '' ?>>Q<?= $q ?> (<?= ['Jan-Mar', 'Apr-Jun', 'Jul-Sep', 'Oct-Dec'][$q - 1] ?>)</option>
                         <?php endfor; ?>
                     </select>
                 </div>
@@ -132,6 +175,32 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
             <p class="small text-muted mb-0">This report is generated from Inventory (transactions), Supplies, and Equipment records within the selected calendar quarter.</p>
         </form>
+
+        <div class="table-responsive no-mobile-cardview mb-4">
+            <table class="table table-bordered table-sm statement-table">
+                <thead class="thead-light">
+                    <tr><th colspan="6" class="text-left">QUARTER SUMMARY</th></tr>
+                    <tr>
+                        <th>Serviceable Equipment</th>
+                        <th>Unserviceable Equipment</th>
+                        <th>Purchases</th>
+                        <th>Issues</th>
+                        <th>Returns</th>
+                        <th>Purchase Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><?= count($serviceable_equipment_items) ?></td>
+                        <td><?= count($unserviceable_equipment_items) ?></td>
+                        <td><?= $quarterPurchaseCount ?></td>
+                        <td><?= $quarterIssueCount ?></td>
+                        <td><?= $quarterReturnCount ?></td>
+                        <td>PHP <?= number_format($quarterPurchaseTotal, 2) ?></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
 
         <div class="text-center mb-3 d-none d-print-block">
             <div class="small">Republic of the Philippines</div>
@@ -166,9 +235,8 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <tr>
                                 <td><?= (int)($idx + 1) ?></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($it['name']) ?></strong>
-                                    <div class="small text-muted">Equipment</div>
-                                    <?php if (!empty($it['description'])): ?><div class="small text-muted"><?= htmlspecialchars($it['description']) ?></div><?php endif; ?>
+                                    <strong><?= htmlspecialchars(osaeits_equipment_display_name($it)) ?></strong>
+                                    <div class="small text-muted"><?= htmlspecialchars($it['item_code']) ?> | Equipment</div>
                                 </td>
                                 <td>1</td>
                                 <td>unit</td>
@@ -206,9 +274,8 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <tr>
                                 <td><?= (int)($idx + 1) ?></td>
                                 <td>
-                                    <strong><?= htmlspecialchars($it['name']) ?></strong>
-                                    <div class="small text-muted">Equipment</div>
-                                    <?php if (!empty($it['description'])): ?><div class="small text-muted"><?= htmlspecialchars($it['description']) ?></div><?php endif; ?>
+                                    <strong><?= htmlspecialchars(osaeits_equipment_display_name($it)) ?></strong>
+                                    <div class="small text-muted"><?= htmlspecialchars($it['item_code']) ?> | Equipment</div>
                                 </td>
                                 <td>1</td>
                                 <td>unit</td>
@@ -226,40 +293,50 @@ require_once __DIR__ . '/../includes/topbar.php';
         <div class="table-responsive no-mobile-cardview mt-4">
             <table class="table table-bordered table-sm statement-table">
                 <thead class="thead-light">
-                    <tr><th colspan="8" class="text-left">INVENTORY TRANSACTIONS (QUARTERLY)</th></tr>
+                    <tr><th colspan="9" class="text-left">INVENTORY TRANSACTIONS (QUARTERLY)</th></tr>
                     <tr>
                         <th width="145">Date</th>
+                        <th width="110">Reference</th>
                         <th>Item</th>
                         <th width="95">Item Type</th>
                         <th width="110">Transaction</th>
                         <th width="75">Quantity</th>
                         <th width="95">Unit Price</th>
                         <th width="95">Total</th>
-                        <th width="90">Remarks</th>
+                        <th width="120">Supplier / Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($inventory_items)): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No inventory transactions found for this quarter.</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">No inventory transactions found for this quarter.</td></tr>
                     <?php else: ?>
                         <?php foreach ($inventory_items as $it): ?>
                             <?php
-                                $itemName = ($it['item_type'] === 'supply')
-                                    ? ($it['supply_name'] ?? 'Supply')
-                                    : ($it['equipment_name'] ?? 'Equipment');
-                                if ($it['item_type'] === 'equipment' && !empty($it['equipment_serial'])) {
-                                    $itemName .= ' (' . $it['equipment_serial'] . ')';
+                                if ($it['item_type'] === 'supply') {
+                                    $itemName = trim((string)($it['supply_code'] ?? '') . ' - ' . osaeits_supply_display_name([
+                                        'name' => $it['supply_name'] ?? 'Supply',
+                                        'description' => $it['supply_description'] ?? '',
+                                    ]), ' -');
+                                } else {
+                                    $itemName = trim((string)($it['equipment_code'] ?? '') . ' - ' . osaeits_equipment_display_name([
+                                        'name' => $it['equipment_name'] ?? 'Equipment',
+                                        'description' => $it['equipment_description'] ?? '',
+                                        'brand' => $it['equipment_brand'] ?? '',
+                                        'model' => $it['equipment_model'] ?? '',
+                                        'serial_number' => $it['equipment_serial'] ?? '',
+                                    ]), ' -');
                                 }
                             ?>
                             <tr>
                                 <td><?= htmlspecialchars(date('M j, Y H:i', strtotime($it['created_at']))) ?></td>
+                                <td><?= htmlspecialchars($it['reference_number'] ?? '-') ?></td>
                                 <td><?= htmlspecialchars($itemName) ?></td>
                                 <td><?= htmlspecialchars(ucfirst((string)$it['item_type'])) ?></td>
                                 <td><?= htmlspecialchars(ucfirst((string)$it['transaction_type'])) ?></td>
                                 <td><?= (int)$it['quantity'] ?></td>
-                                <td>₱<?= number_format((float)$it['unit_price'], 2) ?></td>
-                                <td>₱<?= number_format((float)$it['total_amount'], 2) ?></td>
-                                <td>-</td>
+                                <td>PHP <?= number_format((float)$it['unit_price'], 2) ?></td>
+                                <td>PHP <?= number_format((float)$it['total_amount'], 2) ?></td>
+                                <td><?= htmlspecialchars($formatTransactionRemark($it)) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -270,12 +347,12 @@ require_once __DIR__ . '/../includes/topbar.php';
         <div class="d-none d-print-flex justify-content-between mt-5 px-4">
             <div class="text-center" style="min-width: 240px;">
                 <div style="margin-bottom: 15px; font-size: 12px;">Prepared by:</div>
-                <div class="border-top border-dark pt-1 font-weight-bold text-uppercase" style="font-size: 12px;"><?= htmlspecialchars($preparedByName) ?></div>
+                <div class="border-bottom border-dark pt-1 font-weight-bold text-uppercase" style="font-size: 12px;"><?= htmlspecialchars($preparedByName) ?></div>
                 <div style="font-size: 11px;">Treasurer</div>
             </div>
             <div class="text-center" style="min-width: 240px;">
                 <div style="margin-bottom: 15px; font-size: 12px;">Noted by:</div>
-                <div class="border-top border-dark pt-1 font-weight-bold text-uppercase" style="font-size: 12px;"><?= htmlspecialchars($notedByName) ?></div>
+                <div class="border-bottom border-dark pt-1 font-weight-bold text-uppercase" style="font-size: 12px;"><?= htmlspecialchars($notedByName) ?></div>
                 <div style="font-size: 11px;">Barangay Captain</div>
             </div>
         </div>

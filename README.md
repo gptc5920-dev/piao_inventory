@@ -48,6 +48,21 @@ OSAEITS-Simple/
 
 3. **Use the app**: `http://localhost/OSAEITS-Simple/login.php`
 
+## Deployment
+
+Set these environment variables on your host before running the app:
+
+```
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=osaeits_db
+DB_USER=root
+DB_PASS=
+```
+
+You can also use `DATABASE_URL`, for example `mysql://user:password@host:3306/osaeits_db`.
+Run `migrate.php` after deploying so tables exist, exact duplicate supplies are merged, and legacy starting supply stock is converted into purchase transactions.
+
 ## Tech
 
 - **PHP** (no framework)

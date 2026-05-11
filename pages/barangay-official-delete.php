@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
     header('Location: dashboard.php');
@@ -9,20 +10,35 @@ if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
 }
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$moved = false;
 if ($id > 0) {
-    $stmt = $pdo->prepare("SELECT id, first_name, last_name, position_title FROM barangay_officials WHERE id = ?");
-    $stmt->execute([$id]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($row) {
+    osaeits_ensure_trash_records_table($pdo);
+    try {
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare("SELECT * FROM barangay_officials WHERE id = ?");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $name = trim($row['first_name'] . ' ' . $row['last_name']);
+            $trashId = osaeits_move_entity_to_trash($pdo, 'barangay_official', $id, $name, $row, (int)$_SESSION['user_id']);
+            $pdo->prepare("DELETE FROM barangay_officials WHERE id = ?")->execute([$id]);
+            $moved = true;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+    }
+
+    if ($moved) {
         require_once __DIR__ . '/../includes/activity-log.php';
         log_activity($pdo, (int)$_SESSION['user_id'], 'official.delete', 'barangay_official', $id, [
-            'name' => trim($row['first_name'] . ' ' . $row['last_name']),
+            'name' => $name,
             'position_title' => $row['position_title'],
+            'trash_id' => $trashId,
         ]);
-        $pdo->prepare("DELETE FROM barangay_officials WHERE id = ?")->execute([$id]);
     }
 }
 
-$_SESSION['success_message'] = 'Barangay official deleted.';
+$_SESSION['success_message'] = $moved ? 'Barangay official moved to trash.' : 'Unable to move barangay official to trash.';
 header('Location: barangay-officials.php');
 exit;

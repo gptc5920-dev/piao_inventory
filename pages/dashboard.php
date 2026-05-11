@@ -2,17 +2,37 @@
 session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
+require_once __DIR__ . '/../includes/inventory-helpers.php';
 
 $page_title = 'Dashboard';
 $current_page = 'dashboard';
 $base_url = '../';
 
 // Stats
+$supplyMovementSummarySql = osaeits_supply_movement_summary_sql();
+$supplyStockExpr = osaeits_supply_stock_expression('tx', 's');
+
 $total_supplies = $pdo->query("SELECT COUNT(*) FROM supplies")->fetchColumn();
 $total_equipment = $pdo->query("SELECT COUNT(*) FROM equipment")->fetchColumn();
-$low_stock = $pdo->query("SELECT COUNT(*) FROM supplies WHERE current_stock <= minimum_stock")->fetchColumn();
+$low_stock = $pdo->query(
+    "SELECT COUNT(*)
+     FROM supplies s
+     LEFT JOIN ({$supplyMovementSummarySql}) tx ON tx.item_id = s.id
+     WHERE {$supplyStockExpr} <= s.minimum_stock"
+)->fetchColumn();
 $available_equipment = $pdo->query("SELECT COUNT(*) FROM equipment WHERE status = 'servicable'")->fetchColumn();
-$low_stock_items = $pdo->query("SELECT * FROM supplies WHERE current_stock <= minimum_stock ORDER BY current_stock ASC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+$low_stock_items = $pdo->query(
+    "SELECT
+        s.name,
+        s.unit,
+        s.minimum_stock,
+        {$supplyStockExpr} AS current_stock
+     FROM supplies s
+     LEFT JOIN ({$supplyMovementSummarySql}) tx ON tx.item_id = s.id
+     WHERE {$supplyStockExpr} <= s.minimum_stock
+     ORDER BY current_stock ASC, s.name ASC, s.description ASC
+     LIMIT 5"
+)->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
@@ -94,10 +114,18 @@ require_once __DIR__ . '/../includes/topbar.php';
         <div class="card shadow">
             <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Quick Action</h6></div>
             <div class="card-body">
-                <p class="text-muted mb-3">Record a purchase, issue, return, or adjustment—linked to your supplies and equipment lists.</p>
-                <a href="transaction-form.php" class="btn btn-primary">
-                    <i class="fas fa-plus mr-1"></i> Record stock movement
-                </a>
+                <p class="text-muted mb-3">Record a purchase, issue, or return linked to your supplies and equipment lists.</p>
+                <div class="btn-group flex-wrap" role="group" aria-label="Transaction types">
+                    <a href="transaction-form.php?transaction_type=purchase" class="btn btn-primary">
+                        <i class="fas fa-cart-plus mr-1"></i> Purchase
+                    </a>
+                    <a href="transaction-form.php?transaction_type=issue" class="btn btn-outline-primary">
+                        <i class="fas fa-share-square mr-1"></i> Issue
+                    </a>
+                    <a href="transaction-form.php?transaction_type=return" class="btn btn-outline-primary">
+                        <i class="fas fa-undo mr-1"></i> Return
+                    </a>
+                </div>
             </div>
         </div>
     </div>
