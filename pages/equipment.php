@@ -70,7 +70,6 @@ require_once __DIR__ . '/../includes/topbar.php';
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex flex-wrap align-items-center justify-content-between">
         <h6 class="m-0 font-weight-bold text-primary">Equipment List</h6>
-        <a href="equipment-form.php" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Equipment</a>
     </div>
     <div class="card-body">
         <form method="get" class="form-inline mb-3">
