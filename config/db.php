@@ -15,11 +15,11 @@ function osaeits_env(string $key, ?string $default = null): ?string
 }
 
 $databaseUrl = osaeits_env('DATABASE_URL');
-$db_host = osaeits_env('DB_HOST', 'localhost');
+$db_host = osaeits_env('DB_HOST', 'tswkc0kg0wg4s0cc0g40woo8');
 $db_port = osaeits_env('DB_PORT', '3306');
-$db_name = osaeits_env('DB_NAME', osaeits_env('MYSQL_DATABASE', 'osaeits_db'));
-$db_user = osaeits_env('DB_USER', osaeits_env('MYSQL_USER', 'root'));
-$db_pass = osaeits_env('DB_PASS', osaeits_env('MYSQL_PASSWORD', ''));
+$db_name = osaeits_env('DB_NAME', osaeits_env('MYSQL_DATABASE', 'default'));
+$db_user = osaeits_env('DB_USER', osaeits_env('MYSQL_USER', 'mysql'));
+$db_pass = osaeits_env('DB_PASS', osaeits_env('MYSQL_PASSWORD', 'OziCKHrZSWAh5fXpv10n1r4ltO4xLGcsFoI7NEWs3KdLFtrFKZZKfV2FAjsOqZrO'));
 
 if ($databaseUrl) {
     $parts = parse_url($databaseUrl);

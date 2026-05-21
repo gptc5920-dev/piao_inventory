@@ -864,6 +864,7 @@ $selected_purchase_item_mode = (
 ) ? 'new' : 'existing';
 $transaction_item_col_class = $can_create_purchase_item ? 'col-md-4' : ($selected_transaction_type === 'return' ? 'col-md-12' : 'col-md-6');
 $item_type_group_class = $selected_transaction_type === 'return' ? 'd-none' : $transaction_item_col_class;
+$supply_unit_options = osaeits_supply_unit_options((string)($_POST['new_supply_unit'] ?? ''));
 
 $cancel_inv_href = 'inventory.php';
 if (!empty($tx['item_type']) && in_array($tx['item_type'], ['supply', 'equipment'], true) && (int)($tx['item_id'] ?? 0) > 0) {
@@ -996,7 +997,14 @@ require_once __DIR__ . '/../includes/topbar.php';
                     </div>
                     <div class="form-group col-md-4">
                         <label>Unit *</label>
-                        <input type="text" name="new_supply_unit" id="new_supply_unit" class="form-control" placeholder="e.g. piece, box" value="<?= htmlspecialchars((string)($_POST['new_supply_unit'] ?? '')) ?>">
+                        <select name="new_supply_unit" id="new_supply_unit" class="form-control">
+                            <option value="">Select unit</option>
+                            <?php foreach ($supply_unit_options as $unit_value => $unit_label): ?>
+                                <option value="<?= htmlspecialchars((string)$unit_value) ?>" <?= (string)($_POST['new_supply_unit'] ?? '') === (string)$unit_value ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars((string)$unit_label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="form-group col-md-4">
                         <label>Supplier</label>
