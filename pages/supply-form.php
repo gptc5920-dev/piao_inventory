@@ -30,6 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $minimum_stock = max(0, (int)($_POST['minimum_stock'] ?? 0));
     $unit_price = (float)($_POST['unit_price'] ?? 0);
     $supplier = osaeits_clean_inventory_text($_POST['supplier'] ?? '');
+    $existing_product_minimum = osaeits_supply_product_minimum_stock($pdo, $name);
+    if (!$supply && $minimum_stock === 0 && $existing_product_minimum > 0) {
+        $minimum_stock = $existing_product_minimum;
+    }
     if (!$name || !$unit) {
         $error = 'Name and unit are required.';
     } else {
@@ -58,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $targetId = (int)$pdo->lastInsertId();
                     $createdNewSupply = true;
                 }
+                osaeits_sync_supply_product_minimum_stock($pdo, $name, $minimum_stock);
 
                 if (!$supply && $purchase_quantity > 0) {
                     $reference = osaeits_generate_transaction_reference($pdo, 'supply', 'purchase');
@@ -126,6 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 } else {
     $supply['category'] = $fixed_category;
 }
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !empty($supply['name'])) {
+    $supply['minimum_stock'] = osaeits_supply_product_minimum_stock($pdo, (string)$supply['name']);
+}
 $unit_options = osaeits_supply_unit_options((string)($supply['unit'] ?? ''));
 
 require_once __DIR__ . '/../includes/header.php';
@@ -190,7 +198,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                     <?php endif; ?>
                 </div>
                 <div class="form-group col-md-4">
-                    <label>Minimum Stock</label>
+                    <label>Product Minimum Stock</label>
                     <input type="number" name="minimum_stock" class="form-control" min="0" value="<?= (int)($supply['minimum_stock'] ?? 0) ?>">
                 </div>
                 <div class="form-group col-md-4">

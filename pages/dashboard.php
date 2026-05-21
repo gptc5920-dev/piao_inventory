@@ -11,28 +11,26 @@ $base_url = '../';
 // Stats
 $supplyMovementSummarySql = osaeits_supply_movement_summary_sql();
 $supplyStockExpr = osaeits_supply_stock_expression('tx', 's');
+$lowStockProductsSql = "
+    SELECT
+        MIN(s.name) AS name,
+        CASE
+            WHEN COUNT(DISTINCT COALESCE(NULLIF(TRIM(s.unit), ''), '-')) = 1 THEN MAX(s.unit)
+            ELSE 'Mixed'
+        END AS unit,
+        MAX(s.minimum_stock) AS minimum_stock,
+        SUM({$supplyStockExpr}) AS current_stock
+    FROM supplies s
+    LEFT JOIN ({$supplyMovementSummarySql}) tx ON tx.item_id = s.id
+    GROUP BY LOWER(TRIM(s.name))
+    HAVING SUM({$supplyStockExpr}) <= MAX(s.minimum_stock)
+";
 
 $total_supplies = $pdo->query("SELECT COUNT(*) FROM supplies")->fetchColumn();
 $total_equipment = $pdo->query("SELECT COUNT(*) FROM equipment")->fetchColumn();
-$low_stock = $pdo->query(
-    "SELECT COUNT(*)
-     FROM supplies s
-     LEFT JOIN ({$supplyMovementSummarySql}) tx ON tx.item_id = s.id
-     WHERE {$supplyStockExpr} <= s.minimum_stock"
-)->fetchColumn();
+$low_stock = $pdo->query("SELECT COUNT(*) FROM ({$lowStockProductsSql}) low_stock_products")->fetchColumn();
 $available_equipment = $pdo->query("SELECT COUNT(*) FROM equipment WHERE status = 'servicable'")->fetchColumn();
-$low_stock_items = $pdo->query(
-    "SELECT
-        s.name,
-        s.unit,
-        s.minimum_stock,
-        {$supplyStockExpr} AS current_stock
-     FROM supplies s
-     LEFT JOIN ({$supplyMovementSummarySql}) tx ON tx.item_id = s.id
-     WHERE {$supplyStockExpr} <= s.minimum_stock
-     ORDER BY current_stock ASC, s.name ASC, s.description ASC
-     LIMIT 5"
-)->fetchAll(PDO::FETCH_ASSOC);
+$low_stock_items = $pdo->query($lowStockProductsSql . " ORDER BY current_stock ASC, name ASC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';

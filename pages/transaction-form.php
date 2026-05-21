@@ -236,7 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $purchase_item_mode = (!$tx && $transaction_type === 'purchase' && ($_POST['purchase_item_mode'] ?? '') === 'new') ? 'new' : 'existing';
     $quantity = (int)($_POST['quantity'] ?? 0);
     $unit_price = (float)($_POST['unit_price'] ?? 0);
-    $reference_number = osaeits_clean_inventory_text($_POST['reference_number'] ?? '');
+    $reference_number = $tx
+        ? osaeits_clean_inventory_text($tx['reference_number'] ?? '')
+        : osaeits_clean_inventory_text($_POST['reference_number'] ?? '');
     $notes = trim($_POST['notes'] ?? '');
     $purchase_supplier = osaeits_clean_inventory_text($_POST['purchase_supplier'] ?? '');
     $purchase_detail = osaeits_clean_inventory_text($_POST['purchase_detail'] ?? '');
@@ -387,6 +389,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $error = "Warning: {$duplicateLabel} already exists. No supply record was replaced. Choose Existing item to record this purchase.";
                         throw new RuntimeException($error);
                     } else {
+                        $productMinimum = osaeits_supply_product_minimum_stock($pdo, $new_supply_name);
+                        $minimumStockForNewSupply = ($new_supply_minimum_stock === 0 && $productMinimum > 0)
+                            ? $productMinimum
+                            : $new_supply_minimum_stock;
                         $stmt = $pdo->prepare("
                             INSERT INTO supplies
                                 (name, description, category, unit, current_stock, minimum_stock, unit_price, supplier)
@@ -397,13 +403,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $new_supply_description,
                             'Supplies',
                             $new_supply_unit,
-                            $new_supply_minimum_stock,
+                            $minimumStockForNewSupply,
                             $unit_price,
                             $new_supply_supplier,
                         ]);
                         $item_id = (int)$pdo->lastInsertId();
                         $createdEntityType = 'supply';
                         $createdEntityId = $item_id;
+                        osaeits_sync_supply_product_minimum_stock($pdo, $new_supply_name, $minimumStockForNewSupply);
                     }
                 } else {
                     $duplicate = osaeits_find_equipment_duplicate(
@@ -468,6 +475,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $item_id = (int)$duplicate['id'];
                             $usedExistingSupplyVariant = true;
                         } else {
+                            $productMinimum = osaeits_supply_product_minimum_stock($pdo, (string)($currentSupply['name'] ?? ''));
                             $stmt = $pdo->prepare("
                                 INSERT INTO supplies
                                     (name, description, category, unit, current_stock, minimum_stock, unit_price, supplier)
@@ -477,7 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 (string)$currentSupply['name'],
                                 $purchase_detail,
                                 (string)$currentSupply['unit'],
-                                max(0, (int)($currentSupply['minimum_stock'] ?? 0)),
+                                $productMinimum,
                                 $unit_price,
                                 $purchase_supplier !== '' ? $purchase_supplier : null,
                             ]);
@@ -485,6 +493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $createdEntityType = 'supply';
                             $createdEntityId = $item_id;
                             $createdSupplyVariant = true;
+                            osaeits_sync_supply_product_minimum_stock($pdo, (string)($currentSupply['name'] ?? ''), $productMinimum);
                         }
                         osaeits_ensure_item_identifier($pdo, 'supply', $item_id);
                     } else {
@@ -1012,7 +1021,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                     </div>
                 </div>
                 <div class="form-group mb-0">
-                    <label>Minimum Stock</label>
+                    <label>Product Minimum Stock</label>
                     <input type="number" name="new_supply_minimum_stock" class="form-control" min="0" value="<?= (int)($_POST['new_supply_minimum_stock'] ?? 0) ?>">
                 </div>
             </div>
@@ -1082,7 +1091,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                 </div>
                 <div class="form-group col-md-6">
                     <label>Trace / Reference Number</label>
-                    <input type="text" name="reference_number" class="form-control" value="<?= htmlspecialchars((string)($tx['reference_number'] ?? '')) ?>" <?= in_array($selected_transaction_type, ['issue', 'return'], true) ? 'readonly' : '' ?>>
+                    <input type="text" name="reference_number" class="form-control" value="<?= htmlspecialchars((string)($tx['reference_number'] ?? '')) ?>" readonly>
                 </div>
             </div>
 
@@ -1263,7 +1272,7 @@ function updatePurchaseLabels() {
         : (isIssue ? 'Quantity to Issue *' : (isReturn ? 'Quantity to Return *' : 'Quantity *'));
     document.getElementById('unit_price_label').textContent = isEquipment ? 'Purchase Price (PHP)' : 'Unit Cost (PHP)';
     document.querySelector('input[name="unit_price"]').readOnly = isInventoryMovement;
-    document.querySelector('input[name="reference_number"]').readOnly = isInventoryMovement;
+    document.querySelector('input[name="reference_number"]').readOnly = true;
 }
 
 function updatePurchaseModeVisibility() {

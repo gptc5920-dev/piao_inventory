@@ -56,7 +56,7 @@ $totalMinimum = 0;
 foreach ($variants as $variant) {
     $totalStock += (int)($variant['current_stock'] ?? 0);
     $totalPurchased += (int)($variant['purchase_quantity'] ?? 0);
-    $totalMinimum += (int)($variant['minimum_stock'] ?? 0);
+    $totalMinimum = max($totalMinimum, (int)($variant['minimum_stock'] ?? 0));
 }
 
 require_once __DIR__ . '/../includes/header.php';
@@ -82,13 +82,17 @@ require_once __DIR__ . '/../includes/topbar.php';
                     <div class="small text-muted">Product</div>
                     <div class="font-weight-bold"><?= htmlspecialchars($productDisplayName) ?></div>
                 </div>
-                <div class="col-md-3 col-6 mb-2">
+                <div class="col-md-2 col-6 mb-2">
                     <div class="small text-muted">Variants</div>
                     <div class="font-weight-bold"><?= count($variants) ?></div>
                 </div>
-                <div class="col-md-3 col-6 mb-2">
+                <div class="col-md-2 col-6 mb-2">
                     <div class="small text-muted">Total stock</div>
                     <div class="font-weight-bold"><?= $totalStock ?></div>
+                </div>
+                <div class="col-md-2 col-6 mb-2">
+                    <div class="small text-muted">Product minimum</div>
+                    <div class="font-weight-bold"><?= $totalMinimum ?></div>
                 </div>
                 <div class="col-md-3 col-6 mb-2">
                     <div class="small text-muted">Stock alert</div>
@@ -109,7 +113,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Unit</th>
                         <th>Stock</th>
                         <th>Purchased</th>
-                        <th>Min</th>
+                        <th>Product Min</th>
                         <th>Status</th>
                         <th>Last Purchase</th>
                         <th width="170">Actions</th>
@@ -119,7 +123,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                     <?php foreach ($variants as $idx => $variant): ?>
                         <?php
                             $currentStock = (int)($variant['current_stock'] ?? 0);
-                            $minimumStock = (int)($variant['minimum_stock'] ?? 0);
+                            $minimumStock = $totalMinimum;
                             $isOut = $currentStock <= 0;
                             $isLow = $currentStock <= $minimumStock;
                             $detailHref = 'supply-detail.php?' . http_build_query(['id' => (int)$variant['id']]);
