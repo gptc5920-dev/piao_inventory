@@ -10,6 +10,50 @@ function osaeits_normalize_inventory_text(?string $value): string
     return strtolower(osaeits_clean_inventory_text($value));
 }
 
+function osaeits_supply_unit_options(?string $selectedUnit = null): array
+{
+    $presets = [
+        'piece' => 'Piece',
+        'pcs' => 'Pcs',
+        'box' => 'Box',
+        'pack' => 'Pack',
+        'ream' => 'Ream',
+        'roll' => 'Roll',
+        'bundle' => 'Bundle',
+        'set' => 'Set',
+        'pair' => 'Pair',
+        'dozen' => 'Dozen',
+        'pad' => 'Pad',
+        'book' => 'Book',
+        'bottle' => 'Bottle',
+        'tube' => 'Tube',
+        'can' => 'Can',
+        'cartridge' => 'Cartridge',
+    ];
+
+    $selectedUnit = osaeits_clean_inventory_text($selectedUnit);
+    if ($selectedUnit === '') {
+        return $presets;
+    }
+
+    $options = [];
+    $hasSelected = false;
+    foreach ($presets as $value => $label) {
+        if (strcasecmp($selectedUnit, $value) === 0) {
+            $options[$selectedUnit] = $label;
+            $hasSelected = true;
+        } else {
+            $options[$value] = $label;
+        }
+    }
+
+    if (!$hasSelected) {
+        $options[$selectedUnit] = $selectedUnit;
+    }
+
+    return $options;
+}
+
 function osaeits_item_code_prefix(string $itemType): string
 {
     return $itemType === 'equipment' ? 'EQ' : 'SP';

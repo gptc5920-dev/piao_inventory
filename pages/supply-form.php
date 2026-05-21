@@ -126,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 } else {
     $supply['category'] = $fixed_category;
 }
+$unit_options = osaeits_supply_unit_options((string)($supply['unit'] ?? ''));
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
@@ -164,7 +165,14 @@ require_once __DIR__ . '/../includes/topbar.php';
                 </div>
                 <div class="form-group col-md-4">
                     <label>Unit *</label>
-                    <input type="text" name="unit" class="form-control" placeholder="e.g. piece, box" value="<?= htmlspecialchars($supply['unit']) ?>" required>
+                    <select name="unit" class="form-control" required>
+                        <option value="">Select unit</option>
+                        <?php foreach ($unit_options as $unit_value => $unit_label): ?>
+                            <option value="<?= htmlspecialchars((string)$unit_value) ?>" <?= (string)($supply['unit'] ?? '') === (string)$unit_value ? 'selected' : '' ?>>
+                                <?= htmlspecialchars((string)$unit_label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="form-group col-md-4">
                     <label>Supplier</label>
