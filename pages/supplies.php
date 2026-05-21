@@ -23,16 +23,13 @@ $supplyCodeExpr = osaeits_item_code_select_expr($pdo, 's', 'supply');
 
 $conditions = [];
 $params = [];
-if ($low_stock_only) {
-    $conditions[] = "{$stockExpr} <= s.minimum_stock";
-}
 if ($search !== '') {
     $conditions[] = "({$supplyCodeExpr} LIKE ? OR s.name LIKE ? OR s.description LIKE ? OR s.category LIKE ? OR s.supplier LIKE ?)";
     $term = "%$search%";
     array_push($params, $term, $term, $term, $term, $term);
 }
 $whereSql = !empty($conditions) ? ' WHERE ' . implode(' AND ', $conditions) : '';
-$havingSql = $low_stock_only ? " HAVING SUM({$stockExpr}) <= SUM(s.minimum_stock)" : '';
+$havingSql = $low_stock_only ? " HAVING SUM({$stockExpr}) <= MAX(s.minimum_stock)" : '';
 
 $productGroupSql = "
     SELECT
@@ -44,7 +41,7 @@ $productGroupSql = "
             ELSE 'Mixed'
         END AS unit_label,
         SUM({$stockExpr}) AS current_stock,
-        SUM(s.minimum_stock) AS minimum_stock,
+        MAX(s.minimum_stock) AS minimum_stock,
         SUM(COALESCE(tx.purchase_quantity, 0)) AS purchase_quantity,
         MAX(tx.last_purchase_at) AS last_purchase_at
     {$fromSql}
@@ -110,7 +107,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Unit</th>
                         <th>Total Stock</th>
                         <th>Purchased</th>
-                        <th>Min</th>
+                        <th>Product Min</th>
                         <th>Status</th>
                         <th>Last Purchase</th>
                         <th width="120">Actions</th>

@@ -367,6 +367,38 @@ function osaeits_supply_current_stock(PDO $pdo, int $supplyId): int
     return max(0, (int)$stmt->fetchColumn());
 }
 
+function osaeits_supply_product_minimum_stock(PDO $pdo, string $name): int
+{
+    $productKey = osaeits_normalize_inventory_text($name);
+    if ($productKey === '') {
+        return 0;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT COALESCE(MAX(minimum_stock), 0)
+        FROM supplies
+        WHERE LOWER(TRIM(name)) = ?
+    ");
+    $stmt->execute([$productKey]);
+
+    return max(0, (int)$stmt->fetchColumn());
+}
+
+function osaeits_sync_supply_product_minimum_stock(PDO $pdo, string $name, int $minimumStock): void
+{
+    $productKey = osaeits_normalize_inventory_text($name);
+    if ($productKey === '') {
+        return;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE supplies
+        SET minimum_stock = ?
+        WHERE LOWER(TRIM(name)) = ?
+    ");
+    $stmt->execute([max(0, $minimumStock), $productKey]);
+}
+
 function osaeits_equipment_movement_summary_sql(): string
 {
     return "
@@ -743,6 +775,13 @@ function osaeits_restore_entity_from_trash(PDO $pdo, array $trash, int $restored
 
     if (in_array($entityType, ['supply', 'equipment'], true)) {
         osaeits_ensure_item_identifier($pdo, $entityType, (int)$payload['id']);
+    }
+    if ($entityType === 'supply') {
+        $minimumStock = max(
+            osaeits_supply_product_minimum_stock($pdo, (string)($payload['name'] ?? '')),
+            max(0, (int)($payload['minimum_stock'] ?? 0))
+        );
+        osaeits_sync_supply_product_minimum_stock($pdo, (string)($payload['name'] ?? ''), $minimumStock);
     }
 
     if ($entityType === 'assign_item') {

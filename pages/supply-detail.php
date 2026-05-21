@@ -273,7 +273,7 @@ $renderHistory = static function (string $title, array $rows, string $empty, str
 $displayName = osaeits_supply_display_name($supply);
 $unit = (string)($supply['unit'] ?? '');
 $currentStock = max(0, (int)($supply['current_stock'] ?? 0));
-$minimumStock = max(0, (int)($supply['minimum_stock'] ?? 0));
+$minimumStock = osaeits_supply_product_minimum_stock($pdo, (string)($supply['name'] ?? ''));
 $totalPurchased = max(0, (int)($supply['total_purchased'] ?? 0));
 $totalIssued = max(0, (int)($supply['total_issued'] ?? 0));
 $isLow = $currentStock <= $minimumStock;
@@ -323,7 +323,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                 </div>
             </div>
             <div class="row mt-2">
-                <div class="col-md-2 col-6 mb-2"><div class="small text-muted">Minimum stock</div><div class="h6 mb-0"><?= $minimumStock ?></div></div>
+                <div class="col-md-2 col-6 mb-2"><div class="small text-muted">Product minimum</div><div class="h6 mb-0"><?= $minimumStock ?></div></div>
                 <div class="col-md-2 col-6 mb-2"><div class="small text-muted">Total purchased</div><div class="h6 mb-0"><?= $totalPurchased ?></div></div>
                 <div class="col-md-2 col-6 mb-2"><div class="small text-muted">Total issued</div><div class="h6 mb-0"><?= $totalIssued ?></div></div>
                 <div class="col-md-2 col-6 mb-2"><div class="small text-muted">Remaining balance</div><div class="h6 mb-0"><?= $currentStock ?></div></div>

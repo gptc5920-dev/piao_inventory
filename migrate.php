@@ -352,6 +352,25 @@ try {
         $pdo->rollBack();
     }
 }
+
+// Keep one product-level minimum across variants with the same supply name.
+try {
+    $pdo->exec("
+        UPDATE supplies s
+        INNER JOIN (
+            SELECT product_key, product_minimum
+            FROM (
+                SELECT
+                    LOWER(TRIM(name)) AS product_key,
+                    MAX(minimum_stock) AS product_minimum
+                FROM supplies
+                GROUP BY LOWER(TRIM(name))
+            ) grouped_minimums
+        ) product_minimums ON LOWER(TRIM(s.name)) = product_minimums.product_key
+        SET s.minimum_stock = product_minimums.product_minimum
+        WHERE s.minimum_stock <> product_minimums.product_minimum
+    ");
+} catch (Throwable $e) {}
 try { $pdo->exec("ALTER TABLE supplies DROP INDEX uniq_supplies_name"); } catch (Throwable $e) {}
 try { $pdo->exec("UPDATE supplies SET description = '' WHERE description IS NULL"); } catch (Throwable $e) {}
 try { $pdo->exec("ALTER TABLE supplies ADD UNIQUE KEY uniq_supplies_master_item (name, description(191), unit)"); } catch (Throwable $e) {}
