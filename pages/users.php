@@ -34,7 +34,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Email</th>
                         <th>Role</th>
                         <th>Created</th>
-                        <th width="100">Actions</th>
+                        <th width="70">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -49,11 +49,6 @@ require_once __DIR__ . '/../includes/topbar.php';
                                 <a href="user-form.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit user">
                                     <i class="fas fa-pen"></i>
                                 </a>
-                                <?php if ($u['id'] != $_SESSION['user_id']): ?>
-                                    <a href="user-delete.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this user to trash?" title="Move to trash" aria-label="Move user to trash">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

@@ -54,6 +54,8 @@ function action_label(string $action): string
         'assign_item.create' => 'Recorded who received an assigned item',
         'assign_item.update' => 'Updated an assignment (who holds the item, area, etc.)',
         'assign_item.delete' => 'Removed an assignment record',
+        'report.display' => 'Displayed a report',
+        'report.print' => 'Printed a report',
     ];
     if (isset($map[$action])) {
         return $map[$action];
@@ -77,6 +79,7 @@ function entity_label(?string $entityType, $entityId): string
         'transaction_trash' => 'Trash item',
         'barangay_official' => 'Barangay official',
         'assign_item' => 'Assignment',
+        'report' => 'Report',
     ];
     $base = $map[$entityType] ?? ucfirst(str_replace('_', ' ', $entityType));
     if ($entityId !== null && $entityId !== '') {
@@ -380,6 +383,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <option value="user" <?= $entity_type === 'user' ? 'selected' : '' ?>>User accounts</option>
                             <option value="barangay_official" <?= $entity_type === 'barangay_official' ? 'selected' : '' ?>>Barangay officials</option>
                             <option value="assign_item" <?= $entity_type === 'assign_item' ? 'selected' : '' ?>>Assignments</option>
+                            <option value="report" <?= $entity_type === 'report' ? 'selected' : '' ?>>Reports</option>
                         </select>
                     </div>
                     <div class="form-group col-md-3">

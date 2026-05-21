@@ -28,6 +28,8 @@ function osaeits_audit_action_label(string $action): string
         'assign_item.create' => 'Recorded an item assignment',
         'assign_item.update' => 'Updated an item assignment',
         'assign_item.delete' => 'Removed an item assignment',
+        'report.display' => 'Displayed a report',
+        'report.print' => 'Printed a report',
     ];
 
     if (isset($map[$action])) {
@@ -53,6 +55,7 @@ function osaeits_audit_entity_label(?string $entityType, $entityId): string
         'transaction_trash' => 'Trash transaction',
         'barangay_official' => 'Barangay official',
         'assign_item' => 'Assignment',
+        'report' => 'Report',
     ];
     $label = $map[$entityType] ?? ucfirst(str_replace('_', ' ', $entityType));
 
@@ -376,6 +379,14 @@ function osaeits_audit_details_summary(string $action, ?string $entityType, $raw
         osaeits_audit_add_part($parts, 'Quantity', $decoded['quantity'] ?? null);
         osaeits_audit_add_part($parts, 'Status', $decoded['status'] ?? null);
         return osaeits_audit_sentence($parts, 'Assignment details were saved.');
+    }
+
+    if (in_array($action, ['report.display', 'report.print'], true)) {
+        $parts = [];
+        osaeits_audit_add_part($parts, 'Report', $decoded['report'] ?? null);
+        osaeits_audit_add_part($parts, 'Quarter', $decoded['quarter'] ?? null);
+        osaeits_audit_add_part($parts, 'Period', $decoded['period'] ?? null);
+        return osaeits_audit_sentence($parts, 'Report activity was recorded.');
     }
 
     if ($action === 'trash.restore') {
