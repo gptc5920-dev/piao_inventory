@@ -90,7 +90,6 @@ require_once __DIR__ . '/../includes/topbar.php';
                 <a href="supplies.php?page=1" class="small">Show all supplies</a>
             <?php endif; ?>
         </div>
-        <a href="supply-form.php" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Add Supply</a>
     </div>
     <div class="card-body">
         <form method="get" class="form-inline mb-3">
