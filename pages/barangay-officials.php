@@ -63,7 +63,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Contact</th>
                         <th>Term</th>
                         <th>Status</th>
-                        <th width="110">Actions</th>
+                        <th width="70">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -98,9 +98,6 @@ require_once __DIR__ . '/../includes/topbar.php';
                                 <td class="table-actions">
                                     <a href="barangay-official-form.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit official">
                                         <i class="fas fa-pen"></i>
-                                    </a>
-                                    <a href="barangay-official-delete.php?id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this official to trash?" title="Move to trash" aria-label="Move official to trash">
-                                        <i class="fas fa-trash"></i>
                                     </a>
                                 </td>
                             </tr>

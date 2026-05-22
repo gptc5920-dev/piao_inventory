@@ -105,7 +105,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                 <div class="col-md-3 col-6 mb-2">
                     <div class="small text-muted">Condition</div>
                     <span class="badge badge-success"><?= $serviceableCount ?> serviceable</span>
-                    <span class="badge badge-secondary"><?= $unserviceableCount ?> unserviceable</span>
+                    <span class="badge badge-secondary"><?= $unserviceableCount ?> nonservicesable</span>
                 </div>
             </div>
         </div>
@@ -147,7 +147,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                             </td>
                             <td><?= htmlspecialchars($asset['serial_number'] ?: '-') ?></td>
                             <td><?= htmlspecialchars($brandModel !== '' ? $brandModel : '-') ?></td>
-                            <td><span class="badge badge-<?= $condition === 'servicable' ? 'success' : 'secondary' ?>"><?= $condition === 'servicable' ? 'Servicable' : 'Unservicable' ?></span></td>
+                            <td><span class="badge badge-<?= $condition === 'servicable' ? 'success' : 'secondary' ?>"><?= $condition === 'servicable' ? 'Servicable' : 'Nonservicesable' ?></span></td>
                             <td><span class="badge badge-<?= $isIssued ? 'info' : 'light' ?>"><?= $isIssued ? 'Issued' : 'Available' ?></span></td>
                             <td><?= htmlspecialchars($asset['location'] ?: '-') ?></td>
                             <td><?= htmlspecialchars($asset['person_incharge'] ?: '-') ?></td>

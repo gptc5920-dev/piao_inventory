@@ -96,8 +96,8 @@ function osaeits_audit_equipment_status_label(?string $status): string
     if ($status === 'servicable' || $status === 'serviceable') {
         return 'Working / Serviceable';
     }
-    if ($status === 'unservicable' || $status === 'unserviceable') {
-        return 'Not working / Unserviceable';
+    if (in_array($status, ['unservicable', 'unserviceable', 'nonservicesable'], true)) {
+        return 'Not working / Nonservicesable';
     }
 
     return $status;

@@ -104,7 +104,13 @@ function osaeits_strict_equipment_status_choice(string $status): string
 {
     $status = strtolower(trim($status));
 
-    return in_array($status, ['servicable', 'unservicable'], true) ? $status : '';
+    if (in_array($status, ['servicable', 'unservicable'], true)) {
+        return $status;
+    }
+    if (in_array($status, ['unserviceable', 'nonservicesable', 'non_serviceable'], true)) {
+        return 'unservicable';
+    }
+    return '';
 }
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -938,7 +944,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <select name="return_equipment_status" id="return_equipment_status" class="form-control" required>
                             <option value="" <?= $selected_return_equipment_status === '' ? 'selected' : '' ?>>Select status</option>
                             <option value="servicable" <?= $selected_return_equipment_status === 'servicable' ? 'selected' : '' ?>>Working / Serviceable</option>
-                            <option value="unservicable" <?= $selected_return_equipment_status === 'unservicable' ? 'selected' : '' ?>>Not working / Unserviceable</option>
+                            <option value="nonservicesable" <?= $selected_return_equipment_status === 'unservicable' ? 'selected' : '' ?>>Not working / Nonservicesable</option>
                         </select>
                     </div>
                 </div>
@@ -1049,7 +1055,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <?php $posted_equipment_status = osaeits_normalize_equipment_status($_POST['new_equipment_status'] ?? 'servicable'); ?>
                         <select name="new_equipment_status" class="form-control">
                             <option value="servicable" <?= $posted_equipment_status === 'servicable' ? 'selected' : '' ?>>Servicable</option>
-                            <option value="unservicable" <?= $posted_equipment_status === 'unservicable' ? 'selected' : '' ?>>Unservicable</option>
+                            <option value="nonservicesable" <?= $posted_equipment_status === 'unservicable' ? 'selected' : '' ?>>Nonservicesable</option>
                         </select>
                     </div>
                 </div>

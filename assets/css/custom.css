@@ -544,9 +544,26 @@ a:not(.btn):hover,
         table-layout: fixed;
     }
     .report-print-header {
+        align-items: center;
         break-inside: avoid;
         page-break-inside: avoid;
         color: #000 !important;
+        display: flex !important;
+        gap: 0.2in;
+        width: 100%;
+    }
+    .report-print-logo,
+    .report-print-logo-spacer {
+        flex: 0 0 0.7in;
+        width: 0.7in;
+    }
+    .report-print-logo {
+        height: 0.7in;
+        object-fit: contain;
+    }
+    .report-print-copy {
+        flex: 1 1 auto;
+        min-width: 0;
     }
     .statement-report {
         break-inside: avoid;

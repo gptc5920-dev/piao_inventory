@@ -244,7 +244,7 @@ function osaeits_normalize_equipment_status(string $status): string
     if (in_array($status, ['servicable', 'available', 'in_use', 'maintenance'], true)) {
         return 'servicable';
     }
-    if (in_array($status, ['unservicable', 'retired'], true)) {
+    if (in_array($status, ['unservicable', 'unserviceable', 'nonservicesable', 'non_serviceable', 'retired'], true)) {
         return 'unservicable';
     }
     return 'servicable';
