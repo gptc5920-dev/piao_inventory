@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
             $_SESSION['user_role'] = $user['role'];
+            $_SESSION['show_stock_out_modal'] = true;
             require_once __DIR__ . '/includes/activity-log.php';
             log_activity($pdo, (int)$user['id'], 'auth.login', 'user', (int)$user['id'], [
                 'username' => $user['username'],

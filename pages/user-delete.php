@@ -4,11 +4,6 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
 require_once __DIR__ . '/../includes/inventory-helpers.php';
 
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
-    header('Location: dashboard.php');
-    exit;
-}
-
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $moved = false;
 if ($id > 0 && $id != $_SESSION['user_id']) {

@@ -3,15 +3,11 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
 
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
-    header('Location: dashboard.php');
-    exit;
-}
-
 $page_title = 'Users';
 $current_page = 'users';
 $base_url = '../';
 
+osaeits_ensure_access_tables($pdo);
 $users = $pdo->query("SELECT id, username, email, first_name, last_name, role, created_at FROM users ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 require_once __DIR__ . '/../includes/header.php';
@@ -33,6 +29,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Username</th>
                         <th>Email</th>
                         <th>Role</th>
+                        <th>Access</th>
                         <th>Created</th>
                         <th width="70">Actions</th>
                     </tr>
@@ -43,7 +40,8 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <td><?= htmlspecialchars($u['first_name'] . ' ' . $u['last_name']) ?></td>
                             <td><?= htmlspecialchars($u['username']) ?></td>
                             <td><?= htmlspecialchars($u['email']) ?></td>
-                            <td><span class="badge badge-<?= $u['role'] === 'admin' ? 'danger' : 'secondary' ?>"><?= htmlspecialchars($u['role']) ?></span></td>
+                            <td><span class="badge badge-<?= $u['role'] === 'admin' ? 'danger' : 'secondary' ?>"><?= $u['role'] === 'admin' ? 'Admin' : 'Non-admin' ?></span></td>
+                            <td class="small"><?= htmlspecialchars(osaeits_access_summary(osaeits_load_user_permissions($pdo, (int)$u['id'], (string)$u['role']), (string)$u['role'])) ?></td>
                             <td><?= date('M j, Y', strtotime($u['created_at'])) ?></td>
                             <td class="table-actions">
                                 <a href="user-form.php?id=<?= (int)$u['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit" aria-label="Edit user">

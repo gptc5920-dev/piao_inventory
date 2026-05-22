@@ -59,6 +59,20 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 )");
 
+$pdo->exec("CREATE TABLE IF NOT EXISTS user_access_profiles (
+    user_id INT NOT NULL PRIMARY KEY,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+)");
+
+$pdo->exec("CREATE TABLE IF NOT EXISTS user_access_permissions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    permission_key VARCHAR(80) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_user_permission (user_id, permission_key),
+    INDEX idx_user_access_user (user_id)
+)");
+
 $pdo->exec("CREATE TABLE IF NOT EXISTS supplies (
     id INT AUTO_INCREMENT PRIMARY KEY,
     item_code VARCHAR(30) UNIQUE,

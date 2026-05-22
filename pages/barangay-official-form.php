@@ -3,11 +3,6 @@ session_start();
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/auth-check.php';
 
-if (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
-    header('Location: dashboard.php');
-    exit;
-}
-
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $official = null;
 if ($id > 0) {
