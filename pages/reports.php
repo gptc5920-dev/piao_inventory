@@ -70,7 +70,7 @@ $unserviceableEquipmentStmt = $pdo->prepare(
     "SELECT {$equipmentCodeExpr} AS item_code, name, description, serial_number, brand, model, location, purok_area, appropriation, person_incharge
      FROM equipment
      e
-     WHERE LOWER(TRIM(status)) IN ('unservicable', 'unserviceable', 'retired')
+     WHERE LOWER(TRIM(status)) IN ('unservicable', 'unserviceable', 'nonservicesable', 'non_serviceable', 'retired')
      ORDER BY name ASC"
 );
 $unserviceableEquipmentStmt->execute();
@@ -218,13 +218,27 @@ require_once __DIR__ . '/../includes/topbar.php';
                 <div class="small">Choose a year and quarter, then click Display Report.</div>
             </div>
         <?php else: ?>
+        <div class="report-print-header mb-3 d-none d-print-flex">
+            <img src="<?= htmlspecialchars($base_url) ?>assets/images/piao_logo.png" alt="Barangay Piao logo" class="report-print-logo">
+            <div class="report-print-copy text-center">
+                <div class="small">Republic of the Philippines</div>
+                <div class="small font-weight-bold text-uppercase">Province of Zamboanga del Norte</div>
+                <div class="small font-weight-bold text-uppercase">Barangay Piao</div>
+                <div class="font-weight-bold mt-2 text-uppercase">Statement of Turn Over of Accountability</div>
+                <div class="small">as of <?= htmlspecialchars(date('F Y', strtotime($date_to))) ?></div>
+                <div class="small mt-1"><?= htmlspecialchars($periodLine) ?></div>
+                <div class="small mt-1 font-weight-bold">Generated: <?= htmlspecialchars($report_generated_at) ?></div>
+            </div>
+            <div class="report-print-logo-spacer" aria-hidden="true"></div>
+        </div>
+
         <div class="table-responsive no-mobile-cardview mb-4">
             <table class="table table-bordered table-sm statement-table">
                 <thead class="thead-light">
                     <tr><th colspan="6" class="text-left">QUARTER SUMMARY</th></tr>
                     <tr>
                         <th>Serviceable Equipment</th>
-                        <th>Unserviceable Equipment</th>
+                        <th>Nonservicesable Equipment</th>
                         <th>Purchases</th>
                         <th>Issues</th>
                         <th>Returns</th>
@@ -242,16 +256,6 @@ require_once __DIR__ . '/../includes/topbar.php';
                     </tr>
                 </tbody>
             </table>
-        </div>
-
-        <div class="text-center mb-3 d-none d-print-block">
-            <div class="small">Republic of the Philippines</div>
-            <div class="small font-weight-bold text-uppercase">Province of Zamboanga del Norte</div>
-            <div class="small font-weight-bold text-uppercase">Barangay Piao</div>
-            <div class="font-weight-bold mt-2 text-uppercase">Statement of Turn Over of Accountability</div>
-            <div class="small">as of <?= htmlspecialchars(date('F Y', strtotime($date_to))) ?></div>
-            <div class="small mt-1"><?= htmlspecialchars($periodLine) ?></div>
-            <div class="small mt-1 font-weight-bold">Generated: <?= htmlspecialchars($report_generated_at) ?></div>
         </div>
 
         <div class="table-responsive no-mobile-cardview mb-4">
@@ -296,7 +300,7 @@ require_once __DIR__ . '/../includes/topbar.php';
         <div class="table-responsive no-mobile-cardview">
             <table class="table table-bordered table-sm statement-table">
                 <thead class="thead-light">
-                    <tr><th colspan="8" class="text-left">UNSERVICEABLE ITEMS</th></tr>
+                    <tr><th colspan="8" class="text-left">NONSERVICESABLE ITEMS</th></tr>
                     <tr>
                         <th width="40">Item No.</th>
                         <th>Items &amp; Description</th>
@@ -310,7 +314,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                 </thead>
                 <tbody>
                     <?php if (empty($unserviceable_equipment_items)): ?>
-                        <tr><td colspan="8" class="text-center text-muted">No unserviceable equipment found.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">No nonservicesable equipment found.</td></tr>
                     <?php else: ?>
                         <?php foreach ($unserviceable_equipment_items as $idx => $it): ?>
                             <tr>
@@ -324,7 +328,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                                 <td><?= htmlspecialchars(($it['purok_area'] ?: $it['location']) ?: '-') ?></td>
                                 <td><?= htmlspecialchars($it['appropriation'] ?: '-') ?></td>
                                 <td><?= htmlspecialchars($it['person_incharge'] ?: '-') ?></td>
-                                <td>Unserviceable</td>
+                                <td>Nonservicesable</td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>

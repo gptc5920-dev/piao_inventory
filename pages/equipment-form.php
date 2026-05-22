@@ -121,7 +121,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                     <label>Status</label>
                     <select name="status" class="form-control">
                         <option value="servicable" <?= ($item['status'] ?? '') === 'servicable' ? 'selected' : '' ?>>Servicable</option>
-                        <option value="unservicable" <?= ($item['status'] ?? '') === 'unservicable' ? 'selected' : '' ?>>Unservicable</option>
+                        <option value="nonservicesable" <?= ($item['status'] ?? '') === 'unservicable' ? 'selected' : '' ?>>Nonservicesable</option>
                     </select>
                 </div>
             </div>

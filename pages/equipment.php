@@ -9,7 +9,13 @@ $current_page = 'equipment';
 $base_url = '../';
 
 $search = trim($_GET['search'] ?? '');
-$status = trim($_GET['status'] ?? '');
+$status = strtolower(trim($_GET['status'] ?? ''));
+if (in_array($status, ['nonservicesable', 'unserviceable', 'non_serviceable'], true)) {
+    $status = 'unservicable';
+}
+if (!in_array($status, ['servicable', 'unservicable'], true)) {
+    $status = '';
+}
 
 $limit = 10;
 $page = max(1, (int)($_GET['page'] ?? 1));
@@ -77,7 +83,7 @@ require_once __DIR__ . '/../includes/topbar.php';
             <select name="status" class="form-control form-control-sm mr-2">
                 <option value="">All Status</option>
                 <option value="servicable" <?= $status === 'servicable' ? 'selected' : '' ?>>Servicable</option>
-                <option value="unservicable" <?= $status === 'unservicable' ? 'selected' : '' ?>>Unservicable</option>
+                <option value="nonservicesable" <?= $status === 'unservicable' ? 'selected' : '' ?>>Nonservicesable</option>
             </select>
             <button type="submit" class="btn btn-sm btn-secondary">Search</button>
             <a href="equipment.php" class="btn btn-sm btn-light ml-2">Reset</a>
@@ -92,7 +98,7 @@ require_once __DIR__ . '/../includes/topbar.php';
                         <th>Available</th>
                         <th>Issued</th>
                         <th>Serviceable</th>
-                        <th>Unserviceable</th>
+                        <th>Nonservicesable</th>
                         <th>Last Issue/Return</th>
                         <th width="120">Actions</th>
                     </tr>
