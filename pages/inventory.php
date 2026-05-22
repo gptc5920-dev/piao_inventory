@@ -264,9 +264,11 @@ require_once __DIR__ . '/../includes/topbar.php';
             <h6 class="m-0 font-weight-bold text-primary"><?= htmlspecialchars($page_title) ?></h6>
             <p class="small text-muted mb-0">History of purchases, issues, and returns. Filter, sort, and page through the full record set.</p>
         </div>
+        <?php if (osaeits_can_access('trash')): ?>
         <div>
             <a href="trash.php" class="btn btn-outline-secondary btn-sm mr-1"><i class="fas fa-trash"></i> Trash</a>
         </div>
+        <?php endif; ?>
     </div>
     <div class="card-body">
         <?php if (!empty($_SESSION['success_message'])): ?>
@@ -408,12 +410,14 @@ require_once __DIR__ . '/../includes/topbar.php';
                             <td><?= htmlspecialchars($actorName) ?></td>
                             <td><?= htmlspecialchars($showSupplierColumn ? $formatPurchaseSupplier($t) : ($t['notes'] ?? '-')) ?></td>
                             <td class="table-actions">
+                                <?php if (osaeits_can_access((string)$t['transaction_type'])): ?>
                                 <a href="transaction-form.php?id=<?= (int)$t['id'] ?>" class="btn btn-sm btn-info btn-icon-action" title="Edit transaction" aria-label="Edit transaction">
                                     <i class="fas fa-pen"></i>
                                 </a>
                                 <a href="transaction-delete.php?id=<?= (int)$t['id'] ?>" class="btn btn-sm btn-danger btn-icon-action" data-confirm="Move this transaction to trash?" title="Move to trash" aria-label="Move to trash">
                                     <i class="fas fa-trash"></i>
                                 </a>
+                                <?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

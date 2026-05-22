@@ -26,9 +26,12 @@ try {
         exit;
     }
 
-    if (in_array((string)$trash['entity_type'], ['barangay_official', 'user'], true)
-        && (empty($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin')) {
-        $_SESSION['success_message'] = 'Only admins can restore this record.';
+    $restorePermission = [
+        'barangay_official' => 'barangay_officials',
+        'user' => 'users',
+    ][(string)$trash['entity_type']] ?? '';
+    if ($restorePermission !== '' && !osaeits_can_access($restorePermission)) {
+        $_SESSION['success_message'] = 'You do not have access to restore this record.';
         header('Location: ' . $redirect);
         exit;
     }

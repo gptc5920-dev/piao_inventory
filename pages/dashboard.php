@@ -31,6 +31,15 @@ $total_equipment = $pdo->query("SELECT COUNT(*) FROM equipment")->fetchColumn();
 $low_stock = $pdo->query("SELECT COUNT(*) FROM ({$lowStockProductsSql}) low_stock_products")->fetchColumn();
 $available_equipment = $pdo->query("SELECT COUNT(*) FROM equipment WHERE status = 'servicable'")->fetchColumn();
 $low_stock_items = $pdo->query($lowStockProductsSql . " ORDER BY current_stock ASC, name ASC LIMIT 5")->fetchAll(PDO::FETCH_ASSOC);
+$stockOutProductsSql = "
+    SELECT *
+    FROM ({$lowStockProductsSql}) low_stock_products
+    WHERE current_stock <= 0
+";
+$stock_out_count = (int)$pdo->query("SELECT COUNT(*) FROM ({$stockOutProductsSql}) stock_out_products")->fetchColumn();
+$stock_out_items = $pdo->query($stockOutProductsSql . " ORDER BY name ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+$showStockOutModal = !empty($_SESSION['show_stock_out_modal']) && $stock_out_count > 0 && osaeits_can_access('supplies');
+unset($_SESSION['show_stock_out_modal']);
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/sidebar.php';
@@ -45,6 +54,7 @@ require_once __DIR__ . '/../includes/topbar.php';
 <?php endif; ?>
 
 <div class="row">
+    <?php if (osaeits_can_access('supplies')): ?>
     <div class="col-xl-3 col-md-6 mb-4">
         <a href="supplies.php" class="card-link-wrap">
             <div class="card border-left-primary shadow h-100 py-2">
@@ -60,6 +70,8 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
         </a>
     </div>
+    <?php endif; ?>
+    <?php if (osaeits_can_access('equipment')): ?>
     <div class="col-xl-3 col-md-6 mb-4">
         <a href="equipment.php" class="card-link-wrap">
             <div class="card border-left-success shadow h-100 py-2">
@@ -75,6 +87,8 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
         </a>
     </div>
+    <?php endif; ?>
+    <?php if (osaeits_can_access('supplies')): ?>
     <div class="col-xl-3 col-md-6 mb-4">
         <a href="supplies.php?filter=low_stock" class="card-link-wrap">
             <div class="card border-left-warning shadow h-100 py-2">
@@ -90,6 +104,8 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
         </a>
     </div>
+    <?php endif; ?>
+    <?php if (osaeits_can_access('equipment')): ?>
     <div class="col-xl-3 col-md-6 mb-4">
         <a href="equipment.php?status=servicable" class="card-link-wrap">
             <div class="card border-left-info shadow h-100 py-2">
@@ -105,6 +121,7 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
         </a>
     </div>
+    <?php endif; ?>
 </div>
 
 <div class="row">
@@ -114,19 +131,26 @@ require_once __DIR__ . '/../includes/topbar.php';
             <div class="card-body">
                 <p class="text-muted mb-3">Record a purchase, issue, or return linked to your supplies and equipment lists.</p>
                 <div class="btn-group flex-wrap" role="group" aria-label="Transaction types">
+                    <?php if (osaeits_can_access('purchase')): ?>
                     <a href="transaction-form.php?transaction_type=purchase" class="btn btn-primary">
                         <i class="fas fa-cart-plus mr-1"></i> Purchase
                     </a>
+                    <?php endif; ?>
+                    <?php if (osaeits_can_access('issue')): ?>
                     <a href="transaction-form.php?transaction_type=issue" class="btn btn-outline-primary">
                         <i class="fas fa-share-square mr-1"></i> Issue
                     </a>
+                    <?php endif; ?>
+                    <?php if (osaeits_can_access('return')): ?>
                     <a href="transaction-form.php?transaction_type=return" class="btn btn-outline-primary">
                         <i class="fas fa-undo mr-1"></i> Return
                     </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
+    <?php if (osaeits_can_access('supplies')): ?>
     <div class="col-lg-6 mb-4">
         <a href="supplies.php?filter=low_stock" class="card-link-wrap">
             <div class="card shadow">
@@ -148,6 +172,46 @@ require_once __DIR__ . '/../includes/topbar.php';
             </div>
         </a>
     </div>
+    <?php endif; ?>
 </div>
+
+<?php if ($showStockOutModal): ?>
+<div class="modal fade" id="stockOutModal" tabindex="-1" role="dialog" aria-labelledby="stockOutModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="stockOutModalLabel"><i class="fas fa-exclamation-circle mr-1"></i> Stock Out Alert</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3"><?= (int)$stock_out_count ?> supply product<?= $stock_out_count === 1 ? '' : 's' ?> currently <?= $stock_out_count === 1 ? 'has' : 'have' ?> zero stock.</p>
+                <div class="list-group list-group-flush">
+                    <?php foreach ($stock_out_items as $item): ?>
+                        <div class="list-group-item d-flex justify-content-between px-0">
+                            <span><?= htmlspecialchars((string)$item['name']) ?></span>
+                            <span class="badge badge-danger align-self-center">0 <?= htmlspecialchars((string)$item['unit']) ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <?php if (osaeits_can_access('supplies')): ?>
+                    <a href="supplies.php?filter=stock_out" class="btn btn-danger">View Stock Out</a>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.jQuery) {
+        window.jQuery('#stockOutModal').modal('show');
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

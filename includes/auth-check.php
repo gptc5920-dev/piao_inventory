@@ -10,3 +10,8 @@ if (empty($_SESSION['user_id'])) {
     header('Location: login.php?redirect=' . urlencode($redirect));
     exit;
 }
+require_once __DIR__ . '/access-control.php';
+if (isset($pdo) && $pdo instanceof PDO) {
+    osaeits_refresh_session_access($pdo);
+    osaeits_enforce_current_route_access($pdo);
+}

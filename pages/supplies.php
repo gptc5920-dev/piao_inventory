@@ -9,7 +9,9 @@ $current_page = 'supplies';
 $base_url = '../';
 
 $search = trim($_GET['search'] ?? '');
-$low_stock_only = isset($_GET['filter']) && $_GET['filter'] === 'low_stock';
+$stock_filter = $_GET['filter'] ?? '';
+$low_stock_only = $stock_filter === 'low_stock';
+$stock_out_only = $stock_filter === 'stock_out';
 
 // Pagination parameters
 $limit = 10; // Items per page
@@ -29,7 +31,12 @@ if ($search !== '') {
     array_push($params, $term, $term, $term, $term, $term);
 }
 $whereSql = !empty($conditions) ? ' WHERE ' . implode(' AND ', $conditions) : '';
-$havingSql = $low_stock_only ? " HAVING SUM({$stockExpr}) <= MAX(s.minimum_stock)" : '';
+$havingSql = '';
+if ($stock_out_only) {
+    $havingSql = " HAVING SUM({$stockExpr}) <= 0";
+} elseif ($low_stock_only) {
+    $havingSql = " HAVING SUM({$stockExpr}) <= MAX(s.minimum_stock)";
+}
 
 $productGroupSql = "
     SELECT
@@ -83,15 +90,18 @@ require_once __DIR__ . '/../includes/topbar.php';
     <div class="card-header py-3 d-flex flex-wrap align-items-center justify-content-between">
         <div>
             <h6 class="m-0 font-weight-bold text-primary">Supplies List<?php if ($low_stock_only): ?> <span class="text-warning font-weight-normal">— Low stock</span><?php endif; ?></h6>
-            <?php if ($low_stock_only): ?>
+            <?php if ($stock_out_only): ?>
+                <div class="small text-danger font-weight-bold">Stock out</div>
+            <?php endif; ?>
+            <?php if ($low_stock_only || $stock_out_only): ?>
                 <a href="supplies.php?page=1" class="small">Show all supplies</a>
             <?php endif; ?>
         </div>
     </div>
     <div class="card-body">
         <form method="get" class="form-inline mb-3">
-            <?php if ($low_stock_only): ?>
-                <input type="hidden" name="filter" value="low_stock">
+            <?php if ($low_stock_only || $stock_out_only): ?>
+                <input type="hidden" name="filter" value="<?= $stock_out_only ? 'stock_out' : 'low_stock' ?>">
             <?php endif; ?>
             <input type="hidden" name="page" value="1">
             <input type="text" name="search" class="form-control form-control-sm mr-2" placeholder="Search..." value="<?= htmlspecialchars($search) ?>">
@@ -169,8 +179,8 @@ require_once __DIR__ . '/../includes/topbar.php';
                     if (!empty($search)) {
                         $baseParams['search'] = $search;
                     }
-                    if ($low_stock_only) {
-                        $baseParams['filter'] = 'low_stock';
+                    if ($low_stock_only || $stock_out_only) {
+                        $baseParams['filter'] = $stock_out_only ? 'stock_out' : 'low_stock';
                     }
 
                     // Helper function to build pagination URL
